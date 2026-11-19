@@ -14,6 +14,7 @@ JoyHarness 的 macOS 安装包面向 Apple Silicon，最低系统版本为 macOS
 | `APPLE_ID` | 用于公证的 Apple 账户邮箱 |
 | `APPLE_TEAM_ID` | Apple Developer 团队 ID |
 | `APPLE_APP_PASSWORD` | Apple 账户的 App 专用密码 |
+| `SPARKLE_PRIVATE_KEY` | Sparkle Ed25519 更新签名私钥。更新内容经标准输入传入，不写入发布日志或磁盘 |
 
 ## 发布新版本
 
@@ -33,7 +34,8 @@ JoyHarness 的 macOS 安装包面向 Apple Silicon，最低系统版本为 macOS
 | --- | --- |
 | `JoyHarness-v0.1.0-macos-arm64.dmg` | 对应具体版本的安装包 |
 | `JoyHarness-macos-arm64.dmg` | 与带版本号的 DMG 内容相同，供 README 固定下载链接使用 |
-| `SHA256SUMS` | 上述两个文件的 SHA-256 校验值 |
+| `appcast-arm64.xml` | Sparkle 签名更新源，固定入口为 `releases/latest/download/appcast-arm64.xml` |
+| `SHA256SUMS` | 两个 DMG 文件的 SHA-256 校验值 |
 
 下载一个 DMG 和同一 Release 的 `SHA256SUMS` 到同一目录后，在该目录运行以下命令核对文件。
 
@@ -52,3 +54,5 @@ open .build/JoyHarness-preview.dmg
 ```
 
 向 `main` 推送或发起拉取请求时，CI 会运行测试并构建临时签名的预览 DMG。可在对应的 Actions 记录下载 `JoyHarness-ci-macos-arm64`。提供给用户下载的安装包由 Release 工作流签名和公证。
+
+Release 在最终 DMG 完成签名、公证与 stapling 后生成更新源，并再次校验 DMG 内的更新地址、版本、最低系统版本、下载大小和 EdDSA 签名。任一检查失败时不会发布版本。详细配置与轮换说明见 [应用更新说明](docs/app-updates.md)。

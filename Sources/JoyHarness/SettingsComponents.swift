@@ -177,5 +177,6 @@ enum AppInfo {
     static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "开发版本" }
     static var build: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "dev" }
     static let repository = URL(string: "https://github.com/tokenzz-vip/JoyHarness")!
+    static let website = URL(string: "https://joyharness.tokenzz.vip")!
 }
 

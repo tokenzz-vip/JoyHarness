@@ -10,6 +10,14 @@
   <key>CFBundleVersion</key><string>1</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>
+  <key>SUFeedURL</key><string>https://github.com/tokenzz-vip/JoyHarness/releases/latest/download/appcast-arm64.xml</string>
+  <key>SUPublicEDKey</key><string>AWrcuwmK2DA/yHYVZJbY5UGyScF2ASniLA3JG0f6JX8=</string>
+  <key>SUEnableAutomaticChecks</key><false/>
+  <key>SUAutomaticallyUpdate</key><false/>
+  <key>SUAllowsAutomaticUpdates</key><false/>
+  <key>SUSendProfileInfo</key><false/>
+  <key>SUVerifyUpdateBeforeExtraction</key><true/>
+  <key>SURequireSignedFeed</key><true/>
   <key>LSUIElement</key><false/>
   <key>NSBluetoothAlwaysUsageDescription</key><string>发现并连接 Joy-Con 2，读取手柄按键和摇杆。</string>
   <key>NSHighResolutionCapable</key><true/>

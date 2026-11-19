@@ -50,6 +50,7 @@ JoyHarness 是一款原生 macOS 菜单栏应用。用 Nintendo Switch 的 Joy-C
 - 与 RcHarness 一致的常用语库：16 条中英文内容、五向分配、单击/双击对应两段文本；可在按键映射中把“唤出常用语”绑定到左或右摇杆按下，通过悬浮面板选择并输入。
 - 「设置 → 配置导入与导出」支持 JSON 备份。导入时先预览，确认后才替换。每次替换会保留一份可在重启后恢复的配置。
 - 登录启动、启动时打开主面板、Dock 显示及跟随系统/浅色/深色主题。
+- 设置页支持手动检查更新，也可开启自动检查。更新由 Sparkle 提供签名校验，下载完成后在应用内确认并重启安装。
 - 本机使用次数统计，支持今天、最近 7 天、全部范围及趋势图。
 - 初始化应答匹配与有限重试；断开、暂停、休眠、方案变化时释放合成按键。
 
@@ -111,6 +112,7 @@ open .build/JoyHarness.app
 本地打包默认使用有效的签名证书。可以显式设置 `JOY_HARNESS_ALLOW_ADHOC=1` 生成临时签名构建，重新编译后通常需要再次授予系统输入权限。
 
 `JOY_HARNESS_CONFIGURATION=debug` 可构建调试包。DMG 打包、Developer ID 签名、公证及通过版本标签发布的步骤见 [发布说明](docs/release.md)。
+应用内更新使用 SwiftPM 固定版本的 Sparkle 2.10.1。更新源、签名密钥和发布附件维护见 [应用更新说明](docs/app-updates.md)。
 
 无需连接手柄即可导出各页截图，使用隔离的临时配置，且不会启动硬件监听或发送系统输入：
 
@@ -131,6 +133,7 @@ open .build/JoyHarness.app
 - `InputEngine.swift`：选中设备输入隔离、按键边沿、手势、动作引用计数、摇杆、组合动作。
 - `DashboardModel.swift`：权限、方案持久化、前台应用切换和生命周期。
 - `DashboardView.swift` / `Editors.swift`：设置页面、控制器矢量图、编辑器。
+- `AppUpdateModel.swift`：Sparkle 生命周期、自动检查偏好和版本比较策略。
 - `SettingsStyle.swift` / `SettingsComponents.swift`：与 RcHarness 对齐的界面样式和组件。
 - `StatisticsPage.swift`：按同一时间范围汇总指标、趋势和排行。
 - `SystemEventSender.swift`：沿用 RcHarness 的系统事件注入接口；测试使用替代输出，不向真实会话发事件。

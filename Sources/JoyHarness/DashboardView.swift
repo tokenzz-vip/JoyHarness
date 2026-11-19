@@ -436,6 +436,11 @@ struct DashboardView: View {
                                 .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
                             Text("支持 Joy-Con 一代、二代 · 仅选中的手柄生效")
                                 .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                            HStack(spacing: SettingsStyle.Spacing.groups) {
+                                Link("项目主页", destination: AppInfo.repository)
+                                Link("项目官网", destination: AppInfo.website)
+                            }
+                            .font(SettingsStyle.Typography.body)
                         }
                     }.frame(maxWidth: .infinity, alignment: .leading)
                     Divider()
@@ -447,7 +452,8 @@ struct DashboardView: View {
                         }.font(SettingsStyle.Typography.body)
                         Text("Apple Silicon · macOS 15 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                         Text("配置与统计仅保存在这台 Mac。").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
-                    }.frame(width: 240, alignment: .leading)
+                        AppUpdateSettingsView(model: model.updates)
+                    }.frame(width: 300, alignment: .leading)
                 }.fixedSize(horizontal: false, vertical: true)
             }
             GlobalButtonsPanel(model: model)
@@ -516,6 +522,39 @@ struct DashboardView: View {
                 SettingsStatus(title: granted ? "已授权" : "待授权", color: granted ? .green : .orange)
                 Button(granted ? "系统设置" : "前往授权", action: action).frame(width: 84)
             }
+        }
+    }
+}
+
+private struct AppUpdateSettingsView: View {
+    @ObservedObject var model: AppUpdateModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Button("检查更新…", action: model.checkForUpdates)
+                    .disabled(!model.canCheckForUpdates)
+                Button("版本历史") {
+                    NSWorkspace.shared.open(AppInfo.repository.appending(path: "releases"))
+                }
+            }
+            .controlSize(.small)
+            .font(SettingsStyle.Typography.caption)
+            HStack(spacing: 8) {
+                Toggle("自动检查更新", isOn: Binding(
+                    get: { model.automaticallyChecksForUpdates },
+                    set: model.setAutomaticallyChecksForUpdates
+                ))
+                .toggleStyle(.checkbox)
+                .disabled(!model.isConfigured)
+                .fixedSize()
+                Text(model.lastUpdateCheckDate.map {
+                    "上次检查：\($0.formatted(date: .abbreviated, time: .shortened))"
+                } ?? "尚未检查更新")
+                .foregroundStyle(.secondary)
+                .fixedSize()
+            }
+            .font(SettingsStyle.Typography.caption)
         }
     }
 }

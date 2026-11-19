@@ -35,6 +35,7 @@ enum DashboardPage: String, CaseIterable, Identifiable {
 @MainActor
 final class DashboardModel: ObservableObject {
     @Published var page = DashboardPage.mapping
+    let updates = AppUpdateModel()
     @Published private var storedConfiguration: StoredConfiguration
     @Published var pendingConfigurationImport: ConfigurationImportPreview? {
         willSet {
@@ -327,7 +328,7 @@ final class DashboardModel: ObservableObject {
     func start() {
         guard !started, !preview else { return }; started = true
         NSApp.setActivationPolicy(showDockIcon ? .regular : .accessory)
-        refreshPermissions(); transports.forEach { $0.start() }
+        refreshPermissions(); transports.forEach { $0.start() }; updates.start()
         let workspace = NSWorkspace.shared.notificationCenter
         observers.append(workspace.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.applyProfile() }

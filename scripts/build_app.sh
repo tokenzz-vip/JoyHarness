@@ -4,6 +4,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-${ROOT}/.build/JoyHarness.app}"
 MODE="${2:-local}"
 CONFIGURATION="${JOY_HARNESS_CONFIGURATION:-release}"
+ARCH=arm64
 case "$MODE" in local|distribution) ;; *) echo 'Unknown signing mode' >&2; exit 1 ;; esac
 case "$CONFIGURATION" in debug|release) ;; *) echo 'Unknown configuration' >&2; exit 1 ;; esac
 case "$OUT" in *.app) ;; *) echo 'Output must end in .app' >&2; exit 1 ;; esac
@@ -47,11 +48,12 @@ OUT="$PARENT/$(basename "$OUT")"
 STAGE="$(mktemp -d "$PARENT/.joyharness-build.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 APP="$STAGE/JoyHarness.app"
-swift build --package-path "$ROOT" --arch arm64 -c "$CONFIGURATION"
-BIN="$(swift build --package-path "$ROOT" --show-bin-path --arch arm64 -c "$CONFIGURATION")/JoyHarness"
+swift build --package-path "$ROOT" --arch "$ARCH" -c "$CONFIGURATION"
+BIN="$(swift build --package-path "$ROOT" --show-bin-path --arch "$ARCH" -c "$CONFIGURATION")/JoyHarness"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/JoyHarness"
 cp "$ROOT/Sources/JoyHarness/Info.plist" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :SUFeedURL https://github.com/tokenzz-vip/JoyHarness/releases/latest/download/appcast-${ARCH}.xml" "$APP/Contents/Info.plist"
 cp "$ROOT/assets/brand/JoyHarness.icns" "$APP/Contents/Resources/JoyHarness.icns"
 cp "$ROOT/LICENSE" "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/"
 if [[ -n "${JOY_HARNESS_VERSION:-}" ]]; then
@@ -63,6 +65,8 @@ fi
 if [[ -n "${JOY_HARNESS_FEEDBACK_URL:-}" ]]; then
   /usr/libexec/PlistBuddy -c "Add :JoyHarnessFeedbackURL string ${JOY_HARNESS_FEEDBACK_URL}" "$APP/Contents/Info.plist"
 fi
+bash "$ROOT/scripts/embed_sparkle.sh" "$APP" "$IDENTITY" "$MODE"
+python3 "$ROOT/scripts/app_architecture.py" verify "$APP" "$ARCH"
 ARGS=(--force --sign "$IDENTITY" --identifier vip.tokenzz.joyharness)
 if [[ "$MODE" == distribution ]]; then ARGS+=(--options runtime --timestamp); fi
 /usr/bin/codesign "${ARGS[@]}" "$APP"
