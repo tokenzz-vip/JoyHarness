@@ -57,6 +57,8 @@ final class MacrosLayoutTests: XCTestCase {
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = DashboardModel(defaults: defaults, preview: true)
+        // The mapping page uses Canvas, which needs GPU support the Intel CI VM lacks.
+        model.page = .profiles
         let hostingView = NSHostingView(rootView: DashboardView(model: model))
         let window = NSWindow(contentRect: CGRect(origin: .zero, size: CGSize(width: 1120, height: 820)),
                               styleMask: [.titled], backing: .buffered, defer: false)
@@ -67,9 +69,9 @@ final class MacrosLayoutTests: XCTestCase {
         hostingView.layoutSubtreeIfNeeded()
 
         for attempt in 1...3 {
-            model.page = .mapping
-            guard waitForContentPanes(0, in: hostingView) else {
-                return XCTFail("Attempt \(attempt): The mapping page did not replace the macro panes")
+            model.page = .profiles
+            guard waitForContentPanes(1, in: hostingView) else {
+                return XCTFail("Attempt \(attempt): The profiles page did not replace the macro panes")
             }
             let start = ProcessInfo.processInfo.systemUptime
             model.page = .macros

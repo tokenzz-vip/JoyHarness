@@ -445,7 +445,7 @@ struct DashboardView: View {
                             Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
                                 .font(.system(size: 14, weight: .semibold)).monospacedDigit()
                         }.font(SettingsStyle.Typography.body)
-                        Text("Apple Silicon · macOS 15 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                        Text("Apple Silicon / Intel · macOS 15+").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                         Text("配置与统计仅保存在这台 Mac。").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                     }.frame(width: 240, alignment: .leading)
                 }.fixedSize(horizontal: false, vertical: true)
