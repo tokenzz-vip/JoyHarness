@@ -4,8 +4,13 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-${ROOT}/.build/JoyHarness.app}"
 MODE="${2:-local}"
 CONFIGURATION="${JOY_HARNESS_CONFIGURATION:-release}"
+ARCH="${JOY_HARNESS_ARCH:-$(uname -m)}"
 case "$MODE" in local|distribution) ;; *) echo 'Unknown signing mode' >&2; exit 1 ;; esac
 case "$CONFIGURATION" in debug|release) ;; *) echo 'Unknown configuration' >&2; exit 1 ;; esac
+case "$ARCH" in
+  arm64|x86_64) ;;
+  *) printf 'Unsupported architecture: %s. Use arm64 or x86_64.\n' "$ARCH" >&2; exit 1 ;;
+esac
 case "$OUT" in *.app) ;; *) echo 'Output must end in .app' >&2; exit 1 ;; esac
 if [[ "$MODE" == distribution ]]; then
   IDENTITY="${JOY_HARNESS_SIGNING_IDENTITY:?Set JOY_HARNESS_SIGNING_IDENTITY}"
@@ -47,8 +52,8 @@ OUT="$PARENT/$(basename "$OUT")"
 STAGE="$(mktemp -d "$PARENT/.joyharness-build.XXXXXX")"
 trap 'rm -rf "$STAGE"' EXIT
 APP="$STAGE/JoyHarness.app"
-swift build --package-path "$ROOT" --arch arm64 -c "$CONFIGURATION"
-BIN="$(swift build --package-path "$ROOT" --show-bin-path --arch arm64 -c "$CONFIGURATION")/JoyHarness"
+swift build --package-path "$ROOT" --arch "$ARCH" -c "$CONFIGURATION"
+BIN="$(swift build --package-path "$ROOT" --show-bin-path --arch "$ARCH" -c "$CONFIGURATION")/JoyHarness"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/JoyHarness"
 cp "$ROOT/Sources/JoyHarness/Info.plist" "$APP/Contents/Info.plist"

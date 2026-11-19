@@ -1,6 +1,6 @@
 # 发布 JoyHarness
 
-JoyHarness 的 macOS 安装包面向 Apple Silicon，最低系统版本为 macOS 15。Release 工作流先检查版本标签和签名配置，再从标签构建应用，验证架构、版本和签名证书。工作流把签名后的 DMG 提交 Apple 公证，附加票据后检查签名、镜像和 Gatekeeper 评估结果。独立的发布任务会重新核对 SHA-256，再上传附件到 GitHub Release。见 [Apple 的 macOS 打包说明](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)。
+JoyHarness 分别提供 Apple Silicon（`arm64`）和 Intel（`x86_64`）安装包，最低系统版本为 macOS 15。Release 工作流检查版本标签和签名配置，在对应架构的 runner 上构建应用并验证架构、版本和签名证书。两个 DMG 各自提交 Apple 公证并附加票据，再检查签名、镜像和 Gatekeeper 评估结果。两个构建任务都通过后，发布任务会合并并核对 SHA-256 清单，再上传附件到 GitHub Release。见 [Apple 的 macOS 打包说明](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)。
 
 ## 首次配置
 
@@ -29,21 +29,20 @@ JoyHarness 的 macOS 安装包面向 Apple Silicon，最低系统版本为 macOS
 
 如配置或公证失败，可在 **Actions → Release → Run workflow** 输入已经存在的标签重试。草稿只包含本次预期附件时可复用。若有其他草稿附件，请检查后再重试。已公开版本的附件应保留，后续修改使用新标签。
 
-| 发布附件 | 用途 |
-| --- | --- |
-| `JoyHarness-v0.1.0-macos-arm64.dmg` | 对应具体版本的安装包 |
-| `JoyHarness-macos-arm64.dmg` | 与带版本号的 DMG 内容相同，供 README 固定下载链接使用 |
-| `SHA256SUMS` | 上述两个文件的 SHA-256 校验值 |
+| 架构 | 带版本号的安装包 | 最新版固定下载文件 |
+| --- | --- | --- |
+| Apple Silicon | `JoyHarness-v0.1.0-macos-arm64.dmg` | `JoyHarness-macos-arm64.dmg` |
+| Intel | `JoyHarness-v0.1.0-macos-x86_64.dmg` | `JoyHarness-macos-x86_64.dmg` |
 
-下载一个 DMG 和同一 Release 的 `SHA256SUMS` 到同一目录后，在该目录运行以下命令核对文件。
+同一架构的两个 DMG 内容相同，`SHA256SUMS` 包含四个文件的 SHA-256 校验值。下载 DMG 和同一 Release 的 `SHA256SUMS` 到同一目录后，按实际文件名核对。例如 Intel 固定下载文件可以这样校验。
 
 ```bash
-grep -F '  JoyHarness-macos-arm64.dmg' SHA256SUMS | shasum -a 256 -c -
+grep -F '  JoyHarness-macos-x86_64.dmg' SHA256SUMS | shasum -a 256 -c -
 ```
 
 ## 本地打包预览
 
-使用已配置的本机签名身份构建，再生成含 `JoyHarness.app` 和「应用程序」快捷方式的 DMG。
+使用已配置的本机签名身份构建，再生成含 `JoyHarness.app` 和「应用程序」快捷方式的 DMG。默认构建本机架构，可用 `JOY_HARNESS_ARCH=arm64` 或 `JOY_HARNESS_ARCH=x86_64` 显式指定。
 
 ```bash
 zsh -ic 'scripts/build_app.sh .build/JoyHarness.app'
@@ -51,4 +50,4 @@ scripts/package_dmg.sh .build/JoyHarness.app .build/JoyHarness-preview.dmg
 open .build/JoyHarness-preview.dmg
 ```
 
-向 `main` 推送或发起拉取请求时，CI 会运行测试并构建临时签名的预览 DMG。可在对应的 Actions 记录下载 `JoyHarness-ci-macos-arm64`。提供给用户下载的安装包由 Release 工作流签名和公证。
+向 `main` 推送或发起拉取请求时，CI 会分别在 Apple Silicon 和 Intel 上运行测试并构建临时签名的预览 DMG。可在对应的 Actions 记录下载 `JoyHarness-ci-macos-arm64` 或 `JoyHarness-ci-macos-x86_64`。提供给用户下载的安装包由 Release 工作流签名和公证。
