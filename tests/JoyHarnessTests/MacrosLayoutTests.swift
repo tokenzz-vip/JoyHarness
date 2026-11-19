@@ -52,13 +52,11 @@ final class MacrosLayoutTests: XCTestCase {
                        "Scrolling a long action must not move the macro list")
     }
 
-    func testSwitchingToMacrosShowsBothScrollAreas() {
+    func testSwitchingToMacrosDoesNotBlockTheMainThread() throws {
         let suite = "JoyHarness.MacrosSwitchTests." + UUID().uuidString
         let defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = DashboardModel(defaults: defaults, preview: true)
-        // The mapping page uses Canvas, which needs GPU support the Intel CI VM lacks.
-        model.page = .profiles
         let hostingView = NSHostingView(rootView: DashboardView(model: model))
         let window = NSWindow(contentRect: CGRect(origin: .zero, size: CGSize(width: 1120, height: 820)),
                               styleMask: [.titled], backing: .buffered, defer: false)
@@ -69,34 +67,34 @@ final class MacrosLayoutTests: XCTestCase {
         hostingView.layoutSubtreeIfNeeded()
 
         for attempt in 1...3 {
-            model.page = .profiles
-            guard waitForContentPanes(1, in: hostingView) else {
-                return XCTFail("Attempt \(attempt): The profiles page did not replace the macro panes")
+            model.page = .mapping
+            guard waitForContentPanes(0, in: hostingView) else {
+                return XCTFail("Attempt \(attempt): The mapping page did not replace the macro panes")
             }
             let start = ProcessInfo.processInfo.systemUptime
             model.page = .macros
-            guard waitForContentPanes(2, in: hostingView, startingAt: start) else {
-                return XCTFail("Attempt \(attempt): The macro list and editor did not both appear")
-            }
+            hostingView.layoutSubtreeIfNeeded()
             let elapsed = ProcessInfo.processInfo.systemUptime - start
             print("Macro page switch \(attempt): \(Int(elapsed * 1000)) ms (\(model.savedMacros.count) macros)")
+            XCTAssertLessThan(elapsed, 0.15, "Switching pages must not stall the main thread")
+            guard waitForContentPanes(2, in: hostingView) else {
+                return XCTFail("Attempt \(attempt): The macro list and editor did not both appear")
+            }
         }
     }
 
-    private func waitForContentPanes(_ expected: Int, in hostingView: NSView,
-                                     startingAt start: TimeInterval = ProcessInfo.processInfo.systemUptime) -> Bool {
+    private func waitForContentPanes(_ expected: Int, in hostingView: NSView) -> Bool {
         // SwiftUI can reconcile an observed change on a later run-loop turn.
-        let deadline = start + 2
+        let deadline = Date(timeIntervalSinceNow: 2)
         repeat {
             hostingView.layoutSubtreeIfNeeded()
             let paneCount = scrollViews(in: hostingView).filter {
                 $0.convert($0.bounds, to: hostingView).minX > SettingsStyle.sidebarWidth
             }.count
-            let remaining = deadline - ProcessInfo.processInfo.systemUptime
-            guard remaining > 0 else { return false }
             if paneCount == expected { return true }
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: min(0.01, remaining)))
-        } while ProcessInfo.processInfo.systemUptime < deadline
+            let nextCheck = min(deadline, Date(timeIntervalSinceNow: 0.01))
+            RunLoop.main.run(until: nextCheck)
+        } while Date() < deadline
         return false
     }
 
