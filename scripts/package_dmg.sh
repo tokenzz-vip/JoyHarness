@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP="${1:?JoyHarness.app path required}"
 OUTPUT="${2:?output .dmg path required}"
 VOLUME_NAME="${3:-JoyHarness}"
@@ -32,17 +33,6 @@ ln -s /Applications "$STAGE/volume/Applications"
 hdiutil create -quiet -volname "$VOLUME_NAME" -srcfolder "$STAGE/volume" \
   -format UDZO -imagekey zlib-level=9 "$STAGE/image.dmg"
 
-# The new image may still be temporarily locked when verification first opens it.
-attempt=1
-until hdiutil verify "$STAGE/image.dmg" >/dev/null; do
-  if (( attempt == 4 )); then
-    echo 'Disk image verification failed after 4 attempts.' >&2
-    exit 1
-  fi
-  printf 'Disk image verification failed. Retrying in %s second(s).\n' "$attempt" >&2
-  sleep "$attempt"
-  attempt=$((attempt + 1))
-done
-
+bash "$SCRIPT_DIR/verify_dmg.sh" "$STAGE/image.dmg"
 mv -f "$STAGE/image.dmg" "$OUTPUT"
 echo "Packaged $OUTPUT"

@@ -1,6 +1,6 @@
 # 发布 JoyHarness
 
-JoyHarness 的 macOS 安装包面向 Apple Silicon，最低系统版本为 macOS 15。发布工作流从版本标签构建应用，验证架构和版本，使用 Developer ID 签名应用与 DMG，再将 DMG 提交 Apple 公证。公证票据附加到 DMG 后，工作流校验签名、镜像和 Gatekeeper 评估结果，再发布 GitHub Release。见 [Apple 的 macOS 打包说明](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)。
+JoyHarness 的 macOS 安装包面向 Apple Silicon，最低系统版本为 macOS 15。Release 工作流先检查版本标签和签名配置，再从标签构建应用，验证架构、版本和签名证书。工作流把签名后的 DMG 提交 Apple 公证，附加票据后检查签名、镜像和 Gatekeeper 评估结果。独立的发布任务会重新核对 SHA-256，再上传附件到 GitHub Release。见 [Apple 的 macOS 打包说明](https://developer.apple.com/documentation/xcode/packaging-mac-software-for-distribution)。
 
 ## 首次配置
 
@@ -51,4 +51,4 @@ scripts/package_dmg.sh .build/JoyHarness.app .build/JoyHarness-preview.dmg
 open .build/JoyHarness-preview.dmg
 ```
 
-CI 也会生成临时签名的预览 DMG，供构建检查。提供给用户下载的安装包由 Release 工作流签名和公证。
+向 `main` 推送或发起拉取请求时，CI 会运行测试并构建临时签名的预览 DMG。可在对应的 Actions 记录下载 `JoyHarness-ci-macos-arm64`。提供给用户下载的安装包由 Release 工作流签名和公证。
