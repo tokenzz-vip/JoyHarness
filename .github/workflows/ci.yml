@@ -10,20 +10,38 @@ permissions:
 
 jobs:
   test:
+    name: Test and build (arm64)
     runs-on: macos-15
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - run: scripts/test_all.sh
-      - name: Build and package Apple Silicon app
+
+      - name: Show native toolchain
         run: |
           test "$(uname -m)" = arm64
-          JOY_HARNESS_ALLOW_ADHOC=1 scripts/build_app.sh
-          test "$(lipo -archs .build/JoyHarness.app/Contents/MacOS/JoyHarness)" = arm64
-          scripts/package_dmg.sh .build/JoyHarness.app .build/JoyHarness-ci-macos-arm64.dmg
-      - uses: actions/upload-artifact@v4
+          xcodebuild -version
+          swift --version
+
+      - name: Run native checks
+        run: scripts/test_all.sh
+
+      - name: Build and verify Apple Silicon app
+        env:
+          JOY_HARNESS_ALLOW_ADHOC: '1'
+        run: |
+          scripts/build_app.sh "$RUNNER_TEMP/JoyHarness.app"
+          test "$(lipo -archs "$RUNNER_TEMP/JoyHarness.app/Contents/MacOS/JoyHarness")" = arm64
+
+      - name: Package preview DMG
+        run: scripts/package_dmg.sh "$RUNNER_TEMP/JoyHarness.app" "$RUNNER_TEMP/JoyHarness-ci-macos-arm64.dmg"
+
+      - name: Upload preview DMG
+        uses: actions/upload-artifact@v7
         with:
           name: JoyHarness-ci-macos-arm64
-          path: .build/JoyHarness-ci-macos-arm64.dmg
+          path: ${{ runner.temp }}/JoyHarness-ci-macos-arm64.dmg
           if-no-files-found: error

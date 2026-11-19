@@ -25,27 +25,19 @@ jobs:
     name: Build and notarize (arm64)
     runs-on: macos-15
     timeout-minutes: 75
+    defaults:
+      run:
+        shell: bash
     steps:
-      - name: Validate release tag
+      - name: Set temporary paths
         run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-            echo '::error::Release tags must use vMAJOR.MINOR.PATCH.'
-            exit 1
-          fi
+          printf '%s\n' \
+            "APP_PATH=$RUNNER_TEMP/JoyHarness.app" \
+            "DIST_DIR=$RUNNER_TEMP/release-assets" \
+            "KEYCHAIN_PATH=$RUNNER_TEMP/joyharness-release.keychain-db" >> "$GITHUB_ENV"
 
-      - uses: actions/checkout@v4
-        with:
-          ref: refs/tags/${{ env.RELEASE_TAG }}
-          persist-credentials: false
-
-      - name: Check toolchain and run tests
-        run: |
-          test "$(uname -m)" = arm64
-          xcodebuild -version
-          scripts/test_all.sh
-
-      - name: Import signing certificate and notarization credentials
-        id: signing
+      - name: Validate version and release secrets
+        id: version
         env:
           MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -54,6 +46,10 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo '::error::Release tags must use vMAJOR.MINOR.PATCH.'
+            exit 1
+          fi
           for name in MACOS_CERTIFICATE_P12_BASE64 MACOS_CERTIFICATE_PASSWORD \
             JOY_HARNESS_SIGNING_IDENTITY APPLE_ID APPLE_TEAM_ID APPLE_APP_PASSWORD; do
             if [[ -z "${!name}" ]]; then
@@ -65,92 +61,132 @@ jobs:
             echo '::error::Use a Developer ID Application identity belonging to APPLE_TEAM_ID.'
             exit 1
           fi
+          echo "version=${RELEASE_TAG#v}" >> "$GITHUB_OUTPUT"
 
+      - uses: actions/checkout@v7
+        with:
+          ref: refs/tags/${{ env.RELEASE_TAG }}
+          persist-credentials: false
+
+      - name: Show native toolchain
+        run: |
+          test "$(uname -m)" = arm64
+          xcodebuild -version
+          swift --version
+
+      - name: Run native checks
+        run: scripts/test_all.sh
+
+      - name: Import signing certificate and notarization credentials
+        id: signing
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          JOY_HARNESS_SIGNING_IDENTITY: ${{ secrets.JOY_HARNESS_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
           umask 077
-          keychain="$RUNNER_TEMP/joyharness-release.keychain-db"
           certificate="$RUNNER_TEMP/joyharness-certificate.p12"
           trap 'rm -f "$certificate"' EXIT
           printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate"
           keychain_password="$(openssl rand -hex 32)"
-          security create-keychain -p "$keychain_password" "$keychain"
-          security set-keychain-settings -lut 7200 "$keychain"
-          security unlock-keychain -p "$keychain_password" "$keychain"
+          security create-keychain -p "$keychain_password" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 7200 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$keychain_password" "$KEYCHAIN_PATH"
           security import "$certificate" -P "$MACOS_CERTIFICATE_PASSWORD" \
-            -k "$keychain" -T /usr/bin/codesign
+            -k "$KEYCHAIN_PATH" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: \
-            -s -k "$keychain_password" "$keychain" > /dev/null
-          security list-keychains -d user -s "$keychain"
-          identity="$(security find-identity -v -p codesigning "$keychain" \
-            | awk -v name="$JOY_HARNESS_SIGNING_IDENTITY" 'index($0, "\"" name "\"") { print $2 }')"
+            -s -k "$keychain_password" "$KEYCHAIN_PATH" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH"
+          identity="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | awk -v name="$JOY_HARNESS_SIGNING_IDENTITY" 'index($0, "\"" name "\"") { print toupper($2) }')"
           if [[ ! "$identity" =~ ^[[:xdigit:]]{40}$ ]]; then
             echo '::error::The certificate must contain one valid matching signing identity and its private key.'
             exit 1
           fi
           echo "identity=$identity" >> "$GITHUB_OUTPUT"
           xcrun notarytool store-credentials joyharness-release \
-            --keychain "$keychain" --apple-id "$APPLE_ID" \
+            --keychain "$KEYCHAIN_PATH" --apple-id "$APPLE_ID" \
             --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD"
 
-      - name: Build signed application and disk image
+      - name: Build and verify distribution app
         env:
+          JOY_HARNESS_VERSION: ${{ steps.version.outputs.version }}
           JOY_HARNESS_BUILD: ${{ github.run_number }}
           JOY_HARNESS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          export JOY_HARNESS_VERSION="${RELEASE_TAG#v}"
-          app="$RUNNER_TEMP/JoyHarness.app"
-          dist="$RUNNER_TEMP/release-assets"
-          dmg="$dist/JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
-          scripts/build_app.sh "$app" distribution
-          test "$(lipo -archs "$app/Contents/MacOS/JoyHarness")" = arm64
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist")" = "$JOY_HARNESS_VERSION"
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist")" = "$JOY_HARNESS_BUILD"
-          signature="$(codesign --display --verbose=4 "$app" 2>&1)"
-          grep -Fx "TeamIdentifier=$APPLE_TEAM_ID" <<< "$signature"
-          scripts/package_dmg.sh "$app" "$dmg" "JoyHarness $RELEASE_TAG"
+          scripts/build_app.sh "$APP_PATH" distribution
+          test "$(lipo -archs "$APP_PATH/Contents/MacOS/JoyHarness")" = arm64
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")" = "$JOY_HARNESS_VERSION"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Contents/Info.plist")" = "$JOY_HARNESS_BUILD"
+          signature="$(codesign --display --verbose=4 "$APP_PATH" 2>&1)"
+          if ! grep -Fxq "TeamIdentifier=$APPLE_TEAM_ID" <<< "$signature"; then
+            echo '::error::The app signature belongs to an unexpected Apple team.'
+            exit 1
+          fi
+          prefix="$RUNNER_TEMP/joyharness-signature-"
+          codesign --display --extract-certificates="$prefix" "$APP_PATH"
+          signer="$(shasum -a 1 "${prefix}0" | awk '{print toupper($1)}')"
+          if [[ "$signer" != "$JOY_HARNESS_SIGNING_IDENTITY" ]]; then
+            echo '::error::The app signature does not match the imported signing certificate.'
+            exit 1
+          fi
+
+      - name: Package and sign distribution DMG
+        env:
+          JOY_HARNESS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
+        run: |
+          dmg="$DIST_DIR/JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
+          scripts/package_dmg.sh "$APP_PATH" "$dmg" "JoyHarness $RELEASE_TAG"
           codesign --force --timestamp --sign "$JOY_HARNESS_SIGNING_IDENTITY" "$dmg"
           codesign --verify --strict "$dmg"
 
-      - name: Notarize disk image and generate checksums
+      - name: Notarize and staple distribution DMG
         run: |
-          keychain="$RUNNER_TEMP/joyharness-release.keychain-db"
-          cd "$RUNNER_TEMP/release-assets"
-          archive="JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
+          dmg="$DIST_DIR/JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
           response="$RUNNER_TEMP/joyharness-notarization.json"
-          if ! xcrun notarytool submit "$archive" --wait --timeout 45m --output-format json \
-            --keychain "$keychain" --keychain-profile joyharness-release > "$response" \
+          if ! xcrun notarytool submit "$dmg" --wait --timeout 45m --output-format json \
+            --keychain "$KEYCHAIN_PATH" --keychain-profile joyharness-release > "$response" \
             || ! jq -e '.status == "Accepted"' "$response" > /dev/null; then
             cat "$response"
             submission="$(jq -r '.id // empty' "$response" || true)"
             if [[ -n "$submission" ]]; then
-              xcrun notarytool log "$submission" --keychain "$keychain" \
+              xcrun notarytool log "$submission" --keychain "$KEYCHAIN_PATH" \
                 --keychain-profile joyharness-release || true
             fi
             echo '::error::Notarization was not accepted.'
             exit 1
           fi
-          xcrun stapler staple "$archive"
-          xcrun stapler validate "$archive"
-          codesign --verify --strict "$archive"
-          hdiutil verify "$archive"
-          spctl --assess --type open --context context:primary-signature --verbose=4 "$archive"
+          cat "$response"
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+
+      - name: Verify and prepare release files
+        run: |
+          archive="JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
+          codesign --verify --strict "$DIST_DIR/$archive"
+          bash scripts/verify_dmg.sh "$DIST_DIR/$archive"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$DIST_DIR/$archive"
+          cd "$DIST_DIR"
           cp "$archive" JoyHarness-macos-arm64.dmg
           shasum -a 256 "$archive" JoyHarness-macos-arm64.dmg > SHA256SUMS
 
       - name: Upload verified release files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-arm64
-          path: ${{ runner.temp }}/release-assets/*
+          path: ${{ env.DIST_DIR }}/*
           if-no-files-found: error
           retention-days: 1
 
       - name: Remove temporary signing material
         if: always()
         run: |
-          keychain="$RUNNER_TEMP/joyharness-release.keychain-db"
-          if [[ -f "$keychain" ]]; then security delete-keychain "$keychain"; fi
-          rm -f "$RUNNER_TEMP/joyharness-certificate.p12"
+          if [[ -f "${KEYCHAIN_PATH:-}" ]]; then security delete-keychain "$KEYCHAIN_PATH"; fi
+          rm -f "$RUNNER_TEMP/joyharness-certificate.p12" "$RUNNER_TEMP"/joyharness-signature-*
 
   publish:
     name: Publish GitHub Release
@@ -158,13 +194,25 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    defaults:
+      run:
+        shell: bash
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: release-arm64
           path: release-assets
 
-      - name: Verify and publish release files
+      - name: Verify downloaded release files
+        working-directory: release-assets
+        run: |
+          archive="JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
+          fixed="JoyHarness-macos-arm64.dmg"
+          test -s "$archive"
+          cmp "$archive" "$fixed"
+          sha256sum "$archive" "$fixed" | cmp - SHA256SUMS
+
+      - name: Publish GitHub Release
         working-directory: release-assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -172,9 +220,6 @@ jobs:
         run: |
           archive="JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
           fixed="JoyHarness-macos-arm64.dmg"
-          sha256sum --check SHA256SUMS
-          test -s "$archive"
-          cmp "$archive" "$fixed"
           assets=("$archive" "$fixed" SHA256SUMS)
           expected="$(printf '%s\n' "${assets[@]}" | jq -R . | jq -s .)"
           existing="$RUNNER_TEMP/joyharness-release.json"
