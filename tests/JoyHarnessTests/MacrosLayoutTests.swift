@@ -63,21 +63,39 @@ final class MacrosLayoutTests: XCTestCase {
         window.isReleasedWhenClosed = false
         window.contentView = hostingView
         defer { window.close() }
+        window.orderFront(nil)
         hostingView.layoutSubtreeIfNeeded()
 
         for attempt in 1...3 {
             model.page = .mapping
-            hostingView.layoutSubtreeIfNeeded()
+            guard waitForContentPanes(0, in: hostingView) else {
+                return XCTFail("Attempt \(attempt): The mapping page did not replace the macro panes")
+            }
             let start = ProcessInfo.processInfo.systemUptime
             model.page = .macros
             hostingView.layoutSubtreeIfNeeded()
             let elapsed = ProcessInfo.processInfo.systemUptime - start
             print("Macro page switch \(attempt): \(Int(elapsed * 1000)) ms (\(model.savedMacros.count) macros)")
             XCTAssertLessThan(elapsed, 0.15, "Switching pages must not stall the main thread")
-            XCTAssertEqual(scrollViews(in: hostingView).filter {
-                $0.convert($0.bounds, to: hostingView).minX > SettingsStyle.sidebarWidth
-            }.count, 2)
+            guard waitForContentPanes(2, in: hostingView) else {
+                return XCTFail("Attempt \(attempt): The macro list and editor did not both appear")
+            }
         }
+    }
+
+    private func waitForContentPanes(_ expected: Int, in hostingView: NSView) -> Bool {
+        // SwiftUI can reconcile an observed change on a later run-loop turn.
+        let deadline = Date(timeIntervalSinceNow: 2)
+        repeat {
+            hostingView.layoutSubtreeIfNeeded()
+            let paneCount = scrollViews(in: hostingView).filter {
+                $0.convert($0.bounds, to: hostingView).minX > SettingsStyle.sidebarWidth
+            }.count
+            if paneCount == expected { return true }
+            let nextCheck = min(deadline, Date(timeIntervalSinceNow: 0.01))
+            RunLoop.main.run(until: nextCheck)
+        } while Date() < deadline
+        return false
     }
 
     private func scrollViews(in view: NSView) -> [NSScrollView] {
