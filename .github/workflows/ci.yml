@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: scripts/test_all.sh
+      - name: Build and package Apple Silicon app
+        run: |
+          test "$(uname -m)" = arm64
+          JOY_HARNESS_ALLOW_ADHOC=1 scripts/build_app.sh
+          test "$(lipo -archs .build/JoyHarness.app/Contents/MacOS/JoyHarness)" = arm64
+          scripts/package_dmg.sh .build/JoyHarness.app .build/JoyHarness-ci-macos-arm64.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: JoyHarness-ci-macos-arm64
+          path: .build/JoyHarness-ci-macos-arm64.dmg
+          if-no-files-found: error

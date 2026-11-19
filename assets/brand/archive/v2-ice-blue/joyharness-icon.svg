@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>JoyHarness — Joy-Con control for AI apps</title>
+  <desc>A neon blue and coral red Joy-Con pair controls a pale conversation bubble with a command prompt, on a deep navy macOS tile. A companion to the RcHarness identity.</desc>
+  <defs>
+    <linearGradient id="tile" x1="160" y1="96" x2="874" y2="958" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#294F70"/><stop offset="0.5" stop-color="#1A3049"/><stop offset="1" stop-color="#191C30"/>
+    </linearGradient>
+    <linearGradient id="chat" x1="448" y1="250" x2="794" y2="544" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4FBFF"/><stop offset="1" stop-color="#CFE6F5"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="246" y1="392" x2="395" y2="816" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#27D3F4"/><stop offset="0.5" stop-color="#08BCE8"/><stop offset="1" stop-color="#0099CB"/>
+    </linearGradient>
+    <linearGradient id="red" x1="416" y1="392" x2="566" y2="816" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF8584"/><stop offset="0.48" stop-color="#FF5D65"/><stop offset="1" stop-color="#EA3F52"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="202" fill="url(#tile)"/>
+  <rect x="65.5" y="65.5" width="893" height="893" rx="200.5" stroke="#FFFFFF" stroke-opacity="0.14" stroke-width="3"/>
+  <path d="M474 250H738C779 250 812 283 812 324V470C812 511 779 544 738 544H545L458 606V544C426 537 400 507 400 470V324C400 283 433 250 474 250Z" fill="#091321" fill-opacity="0.35" transform="translate(0 16)"/>
+  <path d="M474 250H738C779 250 812 283 812 324V470C812 511 779 544 738 544H545L458 606V544C426 537 400 507 400 470V324C400 283 433 250 474 250Z" fill="url(#chat)"/>
+  <path d="M575 343L622 390L575 437M666 438H715" stroke="#20364D" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="rotate(24 405 600)">
+    <path d="M325 392H369C382 392 393 403 393 416V792C393 805 382 816 369 816H325C281 816 245 780 245 736V472C245 428 281 392 325 392Z" fill="#081623" fill-opacity="0.4" stroke="#14283D" stroke-width="14" transform="translate(0 14)"/>
+    <path d="M441 392H485C529 392 565 428 565 472V736C565 780 529 816 485 816H441C428 816 417 805 417 792V416C417 403 428 392 441 392Z" fill="#081623" fill-opacity="0.4" stroke="#14283D" stroke-width="14" transform="translate(0 14)"/>
+    <path d="M325 392H369C382 392 393 403 393 416V792C393 805 382 816 369 816H325C281 816 245 780 245 736V472C245 428 281 392 325 392Z" fill="url(#blue)" stroke="#14283D" stroke-width="12"/>
+    <path d="M441 392H485C529 392 565 428 565 472V736C565 780 529 816 485 816H441C428 816 417 805 417 792V416C417 403 428 392 441 392Z" fill="url(#red)" stroke="#14283D" stroke-width="12"/>
+    <path d="M352 430H371M441 430H460M450.5 420.5V439.5" stroke="#173147" stroke-width="9" stroke-linecap="round"/>
+    <circle cx="319" cy="504" r="43" fill="#152D43"/>
+    <circle cx="319" cy="504" r="28" fill="#28617D"/>
+    <circle cx="319" cy="504" r="17" fill="#15374D"/>
+    <g fill="#173147">
+      <circle cx="491" cy="473" r="15"/><circle cx="460" cy="504" r="15"/>
+      <circle cx="522" cy="504" r="15"/><circle cx="491" cy="535" r="15"/>
+      <circle cx="319" cy="612" r="15"/><circle cx="288" cy="643" r="15"/>
+      <circle cx="350" cy="643" r="15"/><circle cx="319" cy="674" r="15"/>
+    </g>
+    <circle cx="491" cy="643" r="43" fill="#382C40"/>
+    <circle cx="491" cy="643" r="28" fill="#815264"/>
+    <circle cx="491" cy="643" r="17" fill="#493245"/>
+    <rect x="306" y="746" width="26" height="26" rx="6" fill="#173147"/>
+    <circle cx="491" cy="759" r="14" fill="#382C40"/>
+    <path d="M258 468C258 431 287 405 325 405H369M441 405H485C521 405 552 433 552 470" stroke="#FFFFFF" stroke-opacity="0.28" stroke-width="4" stroke-linecap="round"/>
+  </g>
+  <path d="M308 322C330 320 352 326 369 339" stroke="#20C9F0" stroke-width="19" stroke-linecap="round"/>
+  <path d="M295 270C329 266 361 275 388 294" stroke="#FF747A" stroke-width="19" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>JoyHarness — Joy-Con control for AI apps</title>
+  <desc>Large cyan and coral Joy-Cons, crisp ink controls, and an unobstructed command prompt on a lavender conversation bubble. Simple high-contrast shapes remain legible at Dock sizes.</desc>
+  <defs>
+    <linearGradient id="tile" x1="160" y1="64" x2="860" y2="960" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#303552"/><stop offset="1" stop-color="#171A2D"/>
+    </linearGradient>
+    <linearGradient id="chat" x1="470" y1="206" x2="846" y2="542" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#D6CDFF"/><stop offset="1" stop-color="#B6A8EF"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="202" fill="url(#tile)"/>
+  <rect x="66" y="66" width="892" height="892" rx="200" stroke="#FFFFFF" stroke-opacity="0.12" stroke-width="4"/>
+  <path d="M522 206H770C812 206 846 240 846 282V460C846 502 812 536 770 536H614L540 592V536H522C480 536 446 502 446 460V282C446 240 480 206 522 206Z" fill="url(#chat)"/>
+  <path d="M650 278L700 328L650 378M753 385H800" stroke="#25263F" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="rotate(18 407 598)">
+    <path d="M303 368H361C383 368 401 386 401 408V788C401 810 383 828 361 828H303C250 828 207 785 207 732V464C207 411 250 368 303 368Z" fill="#13192C" stroke="#13192C" stroke-width="20" stroke-linejoin="round"/>
+    <path d="M467 368H525C578 368 621 411 621 464V732C621 785 578 828 525 828H467C445 828 427 810 427 788V408C427 386 445 368 467 368Z" fill="#13192C" stroke="#13192C" stroke-width="20" stroke-linejoin="round"/>
+    <path d="M303 368H361C383 368 401 386 401 408V788C401 810 383 828 361 828H303C250 828 207 785 207 732V464C207 411 250 368 303 368Z" fill="#19C7E9"/>
+    <path d="M467 368H525C578 368 621 411 621 464V732C621 785 578 828 525 828H467C445 828 427 810 427 788V408C427 386 445 368 467 368Z" fill="#FF6375"/>
+    <g fill="#18243A">
+      <circle cx="304" cy="487" r="49"/>
+      <circle cx="524" cy="666" r="49"/>
+      <circle cx="524" cy="446" r="19"/><circle cx="483" cy="487" r="19"/>
+      <circle cx="565" cy="487" r="19"/><circle cx="524" cy="528" r="19"/>
+      <path d="M294 615H314V648H347V668H314V701H294V668H261V648H294Z"/>
+    </g>
+    </g>
+</svg>

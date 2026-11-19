@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>CFBundleIdentifier</key><string>vip.tokenzz.joyharness</string>
+  <key>CFBundleExecutable</key><string>JoyHarness</string>
+  <key>CFBundleName</key><string>JoyHarness</string>
+  <key>CFBundleDisplayName</key><string>JoyHarness</string>
+  <key>CFBundleIconFile</key><string>JoyHarness.icns</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>1</string>
+  <key>CFBundleShortVersionString</key><string>0.1.0</string>
+  <key>LSMinimumSystemVersion</key><string>15.0</string>
+  <key>LSUIElement</key><false/>
+  <key>NSBluetoothAlwaysUsageDescription</key><string>发现并连接 Joy-Con 2，读取手柄按键和摇杆。</string>
+  <key>NSHighResolutionCapable</key><true/>
+</dict></plist>

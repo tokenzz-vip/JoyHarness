@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>JoyHarness — monochrome companion mark</title>
+  <defs>
+    <mask id="chat-cutouts" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="white"/>
+      <path d="M575 343L622 390L575 437M666 438H715" stroke="black" stroke-width="24" stroke-linecap="round" stroke-linejoin="round"/>
+      <g transform="rotate(24 405 600)" fill="black" stroke="black" stroke-width="36">
+        <path d="M325 392H369C382 392 393 403 393 416V792C393 805 382 816 369 816H325C281 816 245 780 245 736V472C245 428 281 392 325 392Z"/>
+        <path d="M441 392H485C529 392 565 428 565 472V736C565 780 529 816 485 816H441C428 816 417 805 417 792V416C417 403 428 392 441 392Z"/>
+      </g>
+    </mask>
+    <mask id="controller-cutouts" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="white"/>
+      <g transform="rotate(24 405 600)" fill="black">
+        <circle cx="319" cy="504" r="38"/><circle cx="491" cy="643" r="38"/>
+        <circle cx="491" cy="473" r="15"/><circle cx="460" cy="504" r="15"/><circle cx="522" cy="504" r="15"/><circle cx="491" cy="535" r="15"/>
+        <circle cx="319" cy="612" r="15"/><circle cx="288" cy="643" r="15"/><circle cx="350" cy="643" r="15"/><circle cx="319" cy="674" r="15"/>
+      </g>
+    </mask>
+  </defs>
+  <g fill="#20364D">
+    <path d="M474 250H738C779 250 812 283 812 324V470C812 511 779 544 738 544H545L458 606V544C426 537 400 507 400 470V324C400 283 433 250 474 250Z" mask="url(#chat-cutouts)"/>
+    <g mask="url(#controller-cutouts)"><g transform="rotate(24 405 600)">
+      <path d="M325 392H369C382 392 393 403 393 416V792C393 805 382 816 369 816H325C281 816 245 780 245 736V472C245 428 281 392 325 392Z"/>
+      <path d="M441 392H485C529 392 565 428 565 472V736C565 780 529 816 485 816H441C428 816 417 805 417 792V416C417 403 428 392 441 392Z"/>
+    </g></g>
+  </g>
+  <path d="M308 322C330 320 352 326 369 339M295 270C329 266 361 275 388 294" stroke="#20364D" stroke-width="19" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" fill="none">
+  <title>JoyHarness — clear monochrome mark</title>
+  <defs>
+    <mask id="cutouts" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="white"/>
+      <path d="M650 278L700 328L650 378M753 385H800" stroke="black" stroke-width="32" stroke-linecap="round" stroke-linejoin="round"/>
+      <g transform="rotate(18 407 598)" fill="black" stroke="black" stroke-width="40" stroke-linejoin="round">
+        <path d="M303 368H361C383 368 401 386 401 408V788C401 810 383 828 361 828H303C250 828 207 785 207 732V464C207 411 250 368 303 368Z"/><path d="M467 368H525C578 368 621 411 621 464V732C621 785 578 828 525 828H467C445 828 427 810 427 788V408C427 386 445 368 467 368Z"/>
+      </g>
+    </mask>
+    <mask id="buttons" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <rect width="1024" height="1024" fill="white"/>
+      <g transform="rotate(18 407 598)" fill="black">
+        <circle cx="304" cy="487" r="49"/><circle cx="524" cy="666" r="49"/>
+        <circle cx="524" cy="446" r="19"/><circle cx="483" cy="487" r="19"/>
+        <circle cx="565" cy="487" r="19"/><circle cx="524" cy="528" r="19"/>
+        <path d="M294 615H314V648H347V668H314V701H294V668H261V648H294Z"/>
+      </g>
+    </mask>
+  </defs>
+  <g fill="#25263F">
+    <path d="M522 206H770C812 206 846 240 846 282V460C846 502 812 536 770 536H614L540 592V536H522C480 536 446 502 446 460V282C446 240 480 206 522 206Z" mask="url(#cutouts)"/>
+    <g mask="url(#buttons)"><g transform="rotate(18 407 598)"><path d="M303 368H361C383 368 401 386 401 408V788C401 810 383 828 361 828H303C250 828 207 785 207 732V464C207 411 250 368 303 368Z"/><path d="M467 368H525C578 368 621 411 621 464V732C621 785 578 828 525 828H467C445 828 427 810 427 788V408C427 386 445 368 467 368Z"/></g></g>
+  </g>
+  <path d="M279 262C316 258 352 268 382 289M294 313C319 311 342 318 362 331" stroke="#25263F" stroke-width="20" stroke-linecap="round"/>
+</svg>
