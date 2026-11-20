@@ -7,6 +7,7 @@ struct MacrosPage: View {
     @State private var selectedMacroID: UUID?
     @State private var macroNameDraft: String
     @State private var selectedTagIDs: Set<String> = []
+    @State private var showsTagManager = false
     @State private var deleting = false
 
     private var visibleMacros: [ActionMacro] {
@@ -58,6 +59,12 @@ struct MacrosPage: View {
                 selectedMacroID = visibleMacros.first?.id
             }
         }
+        .onChange(of: model.customMacroTags.map(\.id)) { _, _ in
+            selectedTagIDs.formIntersection(model.macroTags.map(\.id))
+        }
+        .sheet(isPresented: $showsTagManager) {
+            MacroTagManagementSheet(model: model)
+        }
     }
 
     private var macroList: some View {
@@ -66,6 +73,9 @@ struct MacrosPage: View {
             HStack(spacing: SettingsStyle.Spacing.inline) {
                 Text("我的组合动作").font(SettingsStyle.Typography.panelTitle)
                 Spacer(minLength: 4)
+                Button("管理标签") { showsTagManager = true }
+                    .controlSize(.small)
+                    .fixedSize()
                 if !model.savedMacros.isEmpty {
                     Button { addMacro() } label: { Label("新建", systemImage: "plus") }
                         .buttonStyle(.borderedProminent)
@@ -141,35 +151,20 @@ struct MacrosPage: View {
     }
 
     private var tagFilterPicker: some View {
-        MacroTagFilter(selection: $selectedTagIDs)
+        MacroTagFilter(selection: $selectedTagIDs, tags: model.macroTags)
     }
 
     private func tagSummary(_ macro: ActionMacro) -> String {
-        MacroTag.all.filter { macro.tagIDs.contains($0.id) }.map(\.name).joined(separator: " · ")
+        model.macroTags.filter { macro.tagIDs.contains($0.id) }.map(\.name).joined(separator: " · ")
     }
 
     private func tagEditor(_ macro: ActionMacro) -> some View {
-        VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
-            HStack(spacing: SettingsStyle.Spacing.inline) {
-                Text("标签").font(SettingsStyle.Typography.body.weight(.semibold))
-                Text("可多选，仅用于筛选").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
-            }
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 112), alignment: .leading)],
-                      alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
-                ForEach(MacroTag.all) { tag in
-                    Toggle(tag.name, isOn: Binding(
-                        get: { model.savedMacros.first(where: { $0.id == macro.id })?.tagIDs.contains(tag.id) ?? false },
-                        set: { isOn in
-                            guard var tags = model.savedMacros.first(where: { $0.id == macro.id })?.tagIDs else { return }
-                            if isOn { tags.insert(tag.id) } else { tags.remove(tag.id) }
-                            model.updateMacroTags(tags, for: macro.id)
-                        }
-                    ))
-                    .toggleStyle(.checkbox)
-                    .font(SettingsStyle.Typography.body)
-                    .accessibilityLabel("\(tag.name)标签")
-                }
-            }
+        HStack(spacing: SettingsStyle.Spacing.inline) {
+            Text("标签").font(SettingsStyle.Typography.body.weight(.semibold))
+            MacroTagFilter(selection: Binding(
+                get: { model.savedMacros.first(where: { $0.id == macro.id })?.tagIDs ?? [] },
+                set: { model.updateMacroTags($0, for: macro.id) }
+            ), tags: model.macroTags, isAssignment: true)
         }
     }
 

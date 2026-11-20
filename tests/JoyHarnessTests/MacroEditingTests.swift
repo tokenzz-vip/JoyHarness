@@ -63,6 +63,34 @@ struct MacroEditingTests {
         }
     }
 
+    @Test func customTagsKeepTheirIdentityOnRenameAndOnlyRemoveTagMembershipOnDelete() throws {
+        try withModel { model in
+            #expect(throws: MacroTagError.emptyName) { try model.saveCustomMacroTag(name: " \n") }
+            #expect(throws: MacroTagError.duplicateName) { try model.saveCustomMacroTag(name: " ＣｈａｔＧＰＴ ") }
+            #expect(throws: MacroTagError.builtIn) { try model.deleteCustomMacroTag(MacroTag.general.id) }
+            try model.saveCustomMacroTag(name: " 日常工作 ")
+            let tag = try #require(model.customMacroTags.first)
+            #expect(tag.name == "日常工作")
+            let id = try #require(model.addMacro(tagIDs: [tag.id]))
+            let otherID = try #require(model.addMacro(tagIDs: [tag.id, MacroTag.general.id]))
+            model.editProfile { $0.mapping[.a] = .init(action: .macro, macroID: id) }
+
+            try model.saveCustomMacroTag(name: "演示", id: tag.id)
+            #expect(model.macroTags.last == MacroTag(id: tag.id, name: "演示"))
+            let taggedMacro = try #require(model.savedMacros.first { $0.id == id })
+            #expect(taggedMacro.tagIDs == [tag.id])
+            let profiles = model.configuration.profiles
+
+            try model.deleteCustomMacroTag(tag.id)
+            #expect(model.customMacroTags.isEmpty)
+            var expectedMacro = taggedMacro
+            expectedMacro.tagIDs = []
+            #expect(model.savedMacros.first { $0.id == id } == expectedMacro)
+            #expect(model.savedMacros.first { $0.id == otherID }?.tagIDs == [MacroTag.general.id])
+            #expect(model.configuration.profiles == profiles)
+        }
+    }
+
     @Test func deletionClearsBindingsAndNestedReferencesAtomically() throws {
         try withModel { model in
             let child = try #require(model.addMacro())

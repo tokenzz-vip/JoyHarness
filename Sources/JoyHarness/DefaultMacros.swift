@@ -283,11 +283,10 @@ enum DefaultMacros {
         openCodeShortcut(59, "转到会话标签页9", kVK_ANSI_9, .maskCommand, "⌘9"),
     ]
 
-    static func addingMissing(to macros: [ActionMacro], since version: Int) -> [ActionMacro] {
+    static func addingMissing(to macros: [ActionMacro], since version: Int, knownTags: Set<String>) -> [ActionMacro] {
         var updated = macros
         if version < 7 {
             let presets = Dictionary(uniqueKeysWithValues: chatgpt.map { ($0.id, $0) })
-            let knownTags = Set(MacroTag.all.map(\.id))
             for index in updated.indices {
                 guard let preset = presets[updated[index].id] else { continue }
                 updated[index].name = preset.name

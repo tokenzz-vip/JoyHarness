@@ -317,6 +317,7 @@ struct Configuration: Codable, Equatable {
     var harnesses: [HarnessBinding] = []
     static let customMacroLimit = 100
     var macros: [ActionMacro] = []
+    var customMacroTags: [MacroTag] = []
     var customMacroCount: Int { macros.filter { !DefaultMacros.presetIDs.contains($0.id) }.count }
     var macroPresetsVersion: Int?
     var profilePresetsVersion: Int?
@@ -329,7 +330,7 @@ struct Configuration: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case version, profiles, defaultProfileID, globalButtons, mouseButtons, harnesses, macros, macroPresetsVersion, profilePresetsVersion, deadzone, pointerSpeed, centers, phrases, phraseAssignments
-        case phrasePresetsVersion, globalGestureOverrides
+        case phrasePresetsVersion, globalGestureOverrides, customMacroTags
     }
 
     init() {}
@@ -349,6 +350,7 @@ struct Configuration: Codable, Equatable {
         mouseButtons = try values.decodeIfPresent([String: MouseButtonBindings].self, forKey: .mouseButtons) ?? [:]
         harnesses = try values.decodeIfPresent([HarnessBinding].self, forKey: .harnesses) ?? []
         macros = try values.decodeIfPresent([ActionMacro].self, forKey: .macros) ?? []
+        customMacroTags = try values.decodeIfPresent([MacroTag].self, forKey: .customMacroTags) ?? []
         macroPresetsVersion = try values.decodeIfPresent(Int.self, forKey: .macroPresetsVersion)
         profilePresetsVersion = try values.decodeIfPresent(Int.self, forKey: .profilePresetsVersion)
         deadzone = try values.decodeIfPresent(Double.self, forKey: .deadzone) ?? 0.18
@@ -367,6 +369,7 @@ struct Configuration: Codable, Equatable {
         try values.encode(mouseButtons, forKey: .mouseButtons)
         try values.encodeIfPresent(defaultProfileID, forKey: .defaultProfileID); try values.encode(harnesses, forKey: .harnesses)
         try values.encode(macros, forKey: .macros); try values.encodeIfPresent(macroPresetsVersion, forKey: .macroPresetsVersion)
+        try values.encode(customMacroTags, forKey: .customMacroTags)
         try values.encodeIfPresent(profilePresetsVersion, forKey: .profilePresetsVersion)
         try values.encode(deadzone, forKey: .deadzone); try values.encode(pointerSpeed, forKey: .pointerSpeed)
         try values.encode(centers, forKey: .centers); try values.encode(phrases, forKey: .phrases)
@@ -416,7 +419,9 @@ struct Configuration: Codable, Equatable {
               } && (try? MacroExecutionPlan($0, macros: macros)) != nil }),
               centers.values.allSatisfy({ (0...4095).contains($0.x) && (0...4095).contains($0.y) })
         else { throw ConfigurationError.invalid }
-        return self
+        var result = self
+        result.customMacroTags = try MacroTag.validatedCustomTags(customMacroTags)
+        return result
     }
     private func validMapping(_ mapping: ButtonMapping) -> Bool {
         switch mapping.action {

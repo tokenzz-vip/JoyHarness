@@ -121,11 +121,16 @@ struct ModelTests {
         defer { try? FileManager.default.removeItem(at: url) }
         let model = DashboardModel(defaults: defaults, preview: true)
         model.duplicateProfile()
+        try model.saveCustomMacroTag(name: "日常工作")
+        let tag = try #require(model.customMacroTags.first)
+        let macroID = try #require(model.addMacro(tagIDs: [tag.id]))
         let oldSelection = model.selectedProfileID
         let original = model.configuration
         var incoming = Configuration()
         incoming.pointerSpeed = 20
-        try JSONEncoder().encode(incoming).write(to: url)
+        incoming.customMacroTags = [.init(id: "demo", name: "演示")]
+        incoming.macros = [.init(name: "演示动作", tagIDs: ["demo", "unknown"])]
+        try ConfigurationImportPreview.encodeBackup(incoming).write(to: url)
 
         model.importConfiguration(from: url)
         let cancelled = try #require(model.pendingConfigurationImport)
@@ -138,7 +143,9 @@ struct ModelTests {
 
         model.importConfiguration(from: url)
         let preview = try #require(model.pendingConfigurationImport)
-        #expect(preview.configuration.macros.count == DefaultMacros.all.count)
+        #expect(preview.configuration.macros.count == DefaultMacros.all.count + 1)
+        #expect(preview.configuration.customMacroTags == incoming.customMacroTags)
+        #expect(preview.configuration.macros.first?.tagIDs == ["demo"])
         #expect(preview.configuration.phrases == DefaultPhrases.all)
         #expect(preview.configuration.phraseAssignments == DefaultPhrases.assignments(for: DefaultPhrases.all))
         incoming.pointerSpeed = 25
@@ -162,6 +169,7 @@ struct ModelTests {
 
         let restored = DashboardModel(defaults: defaults, preview: true)
         #expect(restored.configuration == original)
+        #expect(restored.savedMacros.first { $0.id == macroID }?.tagIDs == [tag.id])
         #expect(restored.selectedProfileID == oldSelection)
         restored.previewConfigurationRecovery()
         #expect(restored.pendingConfigurationImport?.configuration == edited)
@@ -180,9 +188,17 @@ struct ModelTests {
         let original = model.configuration
         model.importConfiguration(from: url)
         #expect(model.pendingConfigurationImport == nil)
-        #expect(model.message.hasPrefix("导入失败"))
+        #expect(model.notices.last?.level == .error)
+        #expect(model.notices.last?.detail.hasPrefix("导入失败") == true)
         #expect(model.configuration == original)
         #expect(model.configurationRecoveryDate == nil)
+        model.showNotice(.success, "诊断信息已复制。")
+        #expect(model.notices.contains { $0.issue == .importFile })
+        try ConfigurationImportPreview.encodeBackup(original).write(to: url)
+        model.importConfiguration(from: url)
+        #expect(model.pendingConfigurationImport != nil)
+        #expect(!model.notices.contains { $0.issue == .importFile })
+        #expect(model.notices.last?.level == .success)
     }
 
     @Test func profileDeletionRemovesBindingsAtomically() {
@@ -198,6 +214,10 @@ struct ModelTests {
         model.deleteProfile(old)
         #expect(model.configuration.profiles.count == 1); #expect(model.configuration.harnesses.isEmpty)
         #expect((try? model.configuration.validated()) != nil)
+        model.deleteProfile(model.selectedProfileID)
+        #expect(model.notices.last?.level == .warning)
+        model.duplicateProfile()
+        #expect(model.notices.isEmpty)
         model.deleteProfile(model.selectedProfileID)
         #expect(model.configuration.profiles.count == 1)
     }

@@ -7,6 +7,11 @@
   <key>CFBundleDisplayName</key><string>JoyHarness</string>
   <key>CFBundleIconFile</key><string>JoyHarness.icns</string>
   <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleDevelopmentRegion</key><string>zh-Hans</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>zh-Hans</string>
+  </array>
   <key>CFBundleVersion</key><string>1</string>
   <key>CFBundleShortVersionString</key><string>0.1.0</string>
   <key>LSMinimumSystemVersion</key><string>15.0</string>

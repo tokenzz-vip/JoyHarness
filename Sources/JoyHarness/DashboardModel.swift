@@ -46,10 +46,7 @@ final class DashboardModel: ObservableObject {
     }
     var configuration: Configuration {
         get { storedConfiguration.configuration }
-        set {
-            do { try installConfiguration(.init(configuration: newValue, recovery: storedConfiguration.recovery)) }
-            catch { message = "配置保存失败。\(error.localizedDescription)" }
-        }
+        set { saveConfiguration(newValue) }
     }
     var configurationRecoveryDate: Date? { storedConfiguration.recovery?.date }
     @Published var statistics: UsageStatistics
@@ -61,19 +58,32 @@ final class DashboardModel: ObservableObject {
     @Published var pressed: Set<ControllerInput> = []
     @Published var snapshots: [String: JoyConSnapshot] = [:]
     @Published var enabled = true
-    @Published var message = ""
+    @Published private(set) var notices: [DashboardNotice] = []
+    private var noticeTimer: Task<Void, Never>?
     @Published var hidStatus = "一代：尚未启动"
     @Published var bleStatus = "二代：尚未启动"
     @Published var frontmostApp = ""
     @Published var accessibility = false
     @Published var inputMonitoring = false
     @Published var recordingShortcut = false
-    /// Publishes stick-mode changes separately from the transient toast message.
+    /// Publishes stick-mode changes separately from the dashboard notice.
     /// Views that show the current mode and the menu-bar coordinator both depend
     /// on this state changing immediately after a mode cycle.
     @Published private(set) var stickModeRevision = 0
-    @Published var pendingPhraseDeletion: PendingPhraseDeletion?
-    @Published var phraseDeletionUndoStack: [DeletedPhrase] = []
+    @Published var pendingPhraseDeletion: PendingPhraseDeletion? {
+        didSet {
+            if let previous = oldValue?.phraseID, previous != pendingPhraseDeletion?.phraseID {
+                clearNotice(for: .phraseDeletion(previous))
+            }
+        }
+    }
+    @Published var phraseDeletionUndoStack: [DeletedPhrase] = [] {
+        didSet {
+            for deleted in oldValue where !phraseDeletionUndoStack.contains(where: { $0.id == deleted.id }) {
+                clearNotice(for: .phraseUndo(deleted.id))
+            }
+        }
+    }
     @Published var macroBindingRequest: UUID?
     @Published var themeMode: AppThemeMode { didSet { defaults.set(themeMode.rawValue, forKey: "JoyHarness.theme") } }
     @Published var openAtLaunch: Bool { didSet { defaults.set(openAtLaunch, forKey: "JoyHarness.openAtLaunch") } }
@@ -139,7 +149,7 @@ final class DashboardModel: ObservableObject {
         engine.onStickModeChange = { [weak self] side, mode in
             guard let self else { return }
             self.stickModeRevision &+= 1
-            self.message = "当前手柄已切换为「\(mode.label)」。"
+            self.showNotice(.information, "当前手柄已切换为「\(mode.label)」。")
             self.onMenuChange?()
         }
         macros.output = { [weak self] in self?.perform($0, pressed: $1) }
@@ -463,7 +473,10 @@ final class DashboardModel: ObservableObject {
             guard let index = configuration.profiles.firstIndex(where: { $0.id == id }) else { return false }
             configuration.profiles[index].name = name
         } else {
-            guard canAddProfile else { message = "最多创建 100 个自定义方案。"; return false }
+            guard canAddProfile else {
+                showNotice(.warning, "最多创建 100 个自定义方案。", issue: .profileLimit, resolvedWhen: { $0.canAddProfile })
+                return false
+            }
             let profile = KeyProfile(name: name)
             configuration.profiles.append(profile)
             selectProfile(profile.id)
@@ -472,7 +485,10 @@ final class DashboardModel: ObservableObject {
     }
     @discardableResult
     func duplicateProfile(_ id: UUID? = nil) -> UUID? {
-        guard canAddProfile else { message = "最多创建 100 个自定义方案。"; return nil }
+        guard canAddProfile else {
+            showNotice(.warning, "最多创建 100 个自定义方案。", issue: .profileLimit, resolvedWhen: { $0.canAddProfile })
+            return nil
+        }
         guard var copy = configuration.profiles.first(where: { $0.id == (id ?? selectedProfileID) }) else { return nil }
         copy.id = UUID()
         let base = String(copy.name.prefix(60)) + " 副本"
@@ -486,7 +502,10 @@ final class DashboardModel: ObservableObject {
     }
     func deleteProfile(_ id: UUID) {
         guard configuration.profiles.contains(where: { $0.id == id }) else { return }
-        guard configuration.profiles.count > 1 else { message = "至少保留一个方案。"; return }
+        guard configuration.profiles.count > 1 else {
+            showNotice(.warning, "至少保留一个方案。", issue: .lastProfile, resolvedWhen: { $0.configuration.profiles.count > 1 })
+            return
+        }
         var next = configuration
         next.profiles.removeAll { $0.id == id }
         next.harnesses.removeAll { $0.profileID == id && !$0.isBuiltIn }
@@ -500,13 +519,20 @@ final class DashboardModel: ObservableObject {
     func addHarness() {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.application]; panel.directoryURL = URL(fileURLWithPath: "/Applications")
         guard panel.runModal() == .OK, let url = panel.url, let id = Bundle(url: url)?.bundleIdentifier else { return }
-        if configuration.harnesses.contains(where: { $0.matches(bundleID: id) }) { message = "这个应用已经有 Harness。"; return }
+        if configuration.harnesses.contains(where: { $0.matches(bundleID: id) }) {
+            showNotice(.warning, "这个应用已经有 Harness。", issue: .duplicateHarness(id), resolvedWhen: { model in
+                !model.configuration.harnesses.contains { $0.matches(bundleID: id) }
+            })
+            return
+        }
         configuration.harnesses.append(.init(applicationPath: url.path, bundleID: id, profileID: selectedProfileID))
     }
     func calibrate(_ device: ConnectedJoyCon) {
         guard let position = snapshots[device.id]?.stick else { return }
-        configuration.centers[device.id] = .init(x: position.x, y: position.y)
-        message = "已记录 \(device.profile.name) 的摇杆中心。"
+        var next = configuration
+        next.centers[device.id] = .init(x: position.x, y: position.y)
+        guard saveConfiguration(next) else { return }
+        showNotice(.success, "已记录 \(device.profile.name) 的摇杆中心。")
     }
     func refreshPermissions() {
         let allowed = AXIsProcessTrusted()
@@ -522,8 +548,10 @@ final class DashboardModel: ObservableObject {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") { NSWorkspace.shared.open(url) }
     }
     func setLogin(_ value: Bool) {
-        do { if value { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } }
-        catch { message = "登录项设置失败：\(error.localizedDescription)" }
+        do {
+            if value { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+            clearNotice(for: .login)
+        } catch { showNotice(.error, "登录项设置失败：\(error.localizedDescription)", issue: .login) }
         loginEnabled = SMAppService.mainApp.status == .enabled
     }
     func exportConfiguration() {
@@ -531,8 +559,9 @@ final class DashboardModel: ObservableObject {
         guard panel.runModal() == .OK, let url = panel.url else { return }
         do {
             try ConfigurationImportPreview.encodeBackup(configuration).write(to: url, options: .atomic)
-            message = "配置已导出。"
-        } catch { message = "导出失败：\(error.localizedDescription)" }
+            clearNotice(for: .export)
+            showNotice(.success, "配置已导出。")
+        } catch { showNotice(.error, "导出失败：\(error.localizedDescription)", issue: .export) }
     }
     func importConfiguration() {
         let panel = NSOpenPanel(); panel.allowedContentTypes = [.json]
@@ -542,7 +571,8 @@ final class DashboardModel: ObservableObject {
     func importConfiguration(from url: URL) {
         do {
             presentConfigurationPreview(try ConfigurationImportPreview.read(from: url))
-        } catch { message = "导入失败：\(error.localizedDescription)" }
+            clearNotice(for: .importFile)
+        } catch { showNotice(.error, "导入失败：\(error.localizedDescription)", issue: .importFile) }
     }
     func previewConfigurationRecovery() {
         guard let recovery = storedConfiguration.recovery else { return }
@@ -553,14 +583,14 @@ final class DashboardModel: ObservableObject {
                 source: recovery.date.formatted(date: .abbreviated, time: .shortened) + " 的替换前备份",
                 isRecovery: true, configuration: restored, editingProfileID: recovery.editingProfileID
             ))
-        } catch { message = "恢复失败：\(error.localizedDescription)" }
+            clearNotice(for: .recovery)
+        } catch { showNotice(.error, "恢复失败：\(error.localizedDescription)", issue: .recovery) }
     }
     private func presentConfigurationPreview(_ preview: ConfigurationImportPreview) {
         phrasePicker?.model.dismiss()
         macros.cancel()
         harnessFocusRequest = UUID()
         harnessComposerFocus.cancel()
-        message = ""
         pendingConfigurationImport = preview
     }
     func confirmConfigurationImport(_ id: UUID) throws {
@@ -575,12 +605,29 @@ final class DashboardModel: ObservableObject {
         pendingPhraseDeletion = nil
         phraseDeletionUndoStack.removeAll()
         pendingConfigurationImport = nil
-        message = preview.isRecovery ? "配置已恢复。已保存恢复前的配置。" : "配置已导入。已保存替换前的配置。"
+        showNotice(.success, preview.isRecovery ? "配置已恢复。已保存恢复前的配置。" : "配置已导入。已保存替换前的配置。")
     }
+    @discardableResult
+    func saveConfiguration(_ configuration: Configuration) -> Bool {
+        do {
+            try commitConfiguration(configuration)
+            return true
+        } catch {
+            showNotice(.error, "配置保存失败。\(error.localizedDescription)", issue: .configurationSave)
+            return false
+        }
+    }
+    func commitConfiguration(_ configuration: Configuration) throws {
+        try installConfiguration(.init(configuration: configuration, recovery: storedConfiguration.recovery))
+    }
+
     private func installConfiguration(_ stored: StoredConfiguration) throws {
         let globalsChanged = storedConfiguration.configuration.globalButtons != stored.configuration.globalButtons
         try SettingsStorage.write(stored, SettingsKeys.configuration, defaults: defaults)
         storedConfiguration = stored
+        clearNotice(for: .configurationSave)
+        let unresolved = notices.filter { $0.resolvedWhen?(self) != true }
+        if unresolved.count != notices.count { notices = unresolved }
         applyProfile()
         if globalsChanged { engine.refreshPausedMapping() }
     }
@@ -683,8 +730,41 @@ final class DashboardModel: ObservableObject {
         \(bleStatus)
         \(devices)
         """
-        NSPasteboard.general.clearContents(); NSPasteboard.general.setString(report, forType: .string)
-        message = "诊断信息已复制。"
+        copyToPasteboard(report, confirmation: "诊断信息已复制。")
+    }
+    func copyToPasteboard(_ text: String, confirmation: String) {
+        NSPasteboard.general.clearContents()
+        guard NSPasteboard.general.setString(text, forType: .string) else {
+            showNotice(.error, "无法写入剪贴板，请重试。", issue: .clipboard)
+            return
+        }
+        clearNotice(for: .clipboard)
+        showNotice(.success, confirmation)
+    }
+    func showNotice(_ level: DashboardNotice.Level, _ detail: String, issue: DashboardNotice.Issue? = nil,
+                    resolvedWhen: (@MainActor (DashboardModel) -> Bool)? = nil) {
+        let notice = DashboardNotice(level: level, detail: detail, issue: issue, resolvedWhen: resolvedWhen)
+        notices = notices.filter { $0.issue != issue } + [notice]
+        guard let duration = level.autoDismissAfter else { return }
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: duration)
+        noticeTimer?.cancel()
+        noticeTimer = Task { [weak self, id = notice.id] in
+            do { try await clock.sleep(until: deadline) } catch { return }
+            self?.dismissNotice(id)
+        }
+    }
+    func dismissNotice(_ id: UUID) {
+        guard let notice = notices.first(where: { $0.id == id }) else { return }
+        if notice.level.autoDismissAfter != nil {
+            noticeTimer?.cancel()
+            noticeTimer = nil
+        }
+        notices.removeAll { $0.id == id }
+    }
+    func clearNotice(for issue: DashboardNotice.Issue) {
+        guard let notice = notices.first(where: { $0.issue == issue }) else { return }
+        dismissNotice(notice.id)
     }
     private func flushStatistics() {
         guard statsDirty else { return }; statsDirty = false

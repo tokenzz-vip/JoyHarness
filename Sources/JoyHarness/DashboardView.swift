@@ -102,27 +102,16 @@ struct DashboardView: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            if !model.message.isEmpty {
-                HStack(spacing: 8) {
-                    Image(systemName: "info.circle").foregroundStyle(Style.accent)
-                    Text(model.message).font(.system(size: 12)).textSelection(.enabled).lineLimit(2)
-                    Spacer()
-                    Button { model.message = "" } label: { Image(systemName: "xmark") }
-                        .buttonStyle(.plain).help("关闭提示")
+            VStack(alignment: .trailing, spacing: SettingsStyle.Spacing.inline) {
+                if let issue = model.notices.last(where: { $0.level.autoDismissAfter == nil }) {
+                    DashboardNoticeView(notice: issue) { model.dismissNotice(issue.id) }
                 }
-                .padding(.horizontal, 14).padding(.vertical, 11)
-                .frame(maxWidth: 420, alignment: .leading)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
-                .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(Style.accent.opacity(0.3)) }
-                .shadow(color: .black.opacity(0.16), radius: 14, y: 5)
-                .padding(.top, 92).padding(.trailing, 24)
+                if let transient = model.notices.last(where: { $0.level.autoDismissAfter != nil }) {
+                    DashboardNoticeView(notice: transient) { model.dismissNotice(transient.id) }
+                }
             }
-        }
-        .task(id: model.message) {
-            guard !model.message.isEmpty else { return }
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            guard !Task.isCancelled, !model.message.isEmpty else { return }
-            model.message = ""
+            .padding(.top, SettingsStyle.pageHeaderHeight)
+            .padding(.trailing, SettingsStyle.pagePadding)
         }
     }
     private var sidebar: some View {
@@ -147,7 +136,6 @@ struct DashboardView: View {
     private func nav(_ page: DashboardPage) -> some View {
         Button {
             model.page = page
-            model.message = ""
         } label: {
             VStack(spacing: 8) {
                 Group {

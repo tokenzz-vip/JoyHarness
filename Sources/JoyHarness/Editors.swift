@@ -150,7 +150,7 @@ struct MappingEditor: View {
                         Picker("触发方式", selection: $gesture) { ForEach(Gesture.allCases) { Text($0.label).tag($0) } }
                             .labelsHidden().pickerStyle(.segmented)
                     }
-                    ActionFields(mapping: draft, recordingContext: gesture, macros: model.configuration.macros)
+                    ActionFields(mapping: draft, model: model, recordingContext: gesture)
                     if input.isStickDirection {
                         Text("方向动作仅在「方向映射」模式生效。")
                             .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
@@ -199,9 +199,10 @@ extension ButtonMapping {
 
 struct ActionFields: View {
     @Binding var mapping: ButtonMapping
+    @ObservedObject var model: DashboardModel
     @State private var capturingShortcut = false
+    @State private var selectedMacroTagIDs: Set<String> = []
     var recordingContext: Gesture = .single
-    var macros: [ActionMacro] = []
     var allowMacro = true
 
     private var availableActions: [RemoteAction] {
@@ -245,13 +246,10 @@ struct ActionFields: View {
                     .font(.system(size: 13)).padding(8).frame(height: 100)
                     .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
             case .macro:
-                MappingEditorField("组合动作") {
-                    SettingsSingleSelectionPicker(selection: $mapping.macroID,
-                        options: [SettingsSelectionOption(value: nil as UUID?, title: "请选择")] + macros.map {
-                            SettingsSelectionOption(value: Optional($0.id), title: $0.name)
-                        }, accessibilityLabel: "组合动作", identifier: "mapping-macro-picker")
-                }
-                if macros.isEmpty { Text("先在「组合动作」页面创建动作。").font(.system(size: 11)).foregroundStyle(.secondary) }
+                MacroReferencePicker(referenceID: Binding(
+                    get: { mapping.macroID?.uuidString },
+                    set: { mapping.macroID = $0.flatMap(UUID.init(uuidString:)) }
+                ), tagIDs: $selectedMacroTagIDs, model: model)
             default: EmptyView()
             }
         }

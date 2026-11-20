@@ -109,6 +109,14 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 for _ in 0..<(day + 1) { model.statistics.record(.c, date: date) }
             }
         }
+        let macroTagPreview = arguments.contains("--macro-tag-preview")
+        if macroTagPreview {
+            try model.saveCustomMacroTag(name: "日常工作")
+            try model.saveCustomMacroTag(name: "演示")
+            if let macro = model.savedMacros.first, let tag = model.customMacroTags.first {
+                model.updateMacroTags(macro.tagIDs.union([tag.id]), for: macro.id)
+            }
+        }
         let dark = arguments.contains("--dark")
         let size = arguments.contains("--narrow") ? DashboardStyle.minimumWindowSize : CGSize(width: 1120, height: 820)
         let view = NSHostingView(rootView: DashboardView(model: model)
@@ -125,6 +133,33 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             view.frame = CGRect(origin: .zero, size: size)
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
             try render(view, to: directory.appendingPathComponent(page.rawValue + ".png"))
+        }
+        if macroTagPreview {
+            let manager = NSHostingView(rootView: MacroTagManagementSheet(model: model)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.colorScheme, dark ? .dark : .light))
+            manager.appearance = window.appearance
+            manager.frame.size = manager.fittingSize
+            try render(manager, to: directory.appendingPathComponent("macro-tag-management.png"))
+        }
+        if arguments.contains("--notice-preview") {
+            model.page = .settings
+            let samples: [(DashboardNotice.Level, String, DashboardNotice.Issue?)] = [
+                (.success, "配置已导出。", nil),
+                (.information, "当前手柄已切换为「方向映射」。", nil),
+                (.warning, "至少保留一个方案。请先创建另一个按键方案。", .lastProfile),
+                (.error, "导入失败：配置文件格式无效，请选择 JoyHarness 导出的 JSON 文件。", .importFile),
+            ]
+            for (level, detail, issue) in samples {
+                model.showNotice(level, detail, issue: issue)
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+                try render(view, to: directory.appendingPathComponent("notice-\(level.rawValue).png"))
+                if level != .error, let notice = model.notices.last { model.dismissNotice(notice.id) }
+            }
+            model.showNotice(.success, "诊断信息已复制。")
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+            try render(view, to: directory.appendingPathComponent("notice-stacked.png"))
+            for notice in model.notices { model.dismissNotice(notice.id) }
         }
         if arguments.contains("--phrase-preview") {
             let picker = PhrasePickerController(onDismiss: {}, onOutput: { _ in })

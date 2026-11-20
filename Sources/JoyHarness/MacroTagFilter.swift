@@ -3,22 +3,23 @@ import SwiftUI
 @MainActor
 struct MacroTagFilter: View {
     @Binding var selection: Set<String>
+    let tags: [MacroTag]
+    var isAssignment = false
 
     private var names: [String] {
-        MacroTag.all.filter { selection.contains($0.id) }.map(\.name)
+        tags.filter { selection.contains($0.id) }.map(\.name)
     }
 
-    private var summary: String {
-        names.isEmpty ? "全部标签" : names.joined(separator: "、")
-    }
+    private var emptyTitle: String { isAssignment ? "选择标签…" : "全部标签" }
 
     var body: some View {
-        SettingsSelectionPopover(title: summary, accessibilityLabel: "按标签筛选组合动作",
-            identifier: "macro-tag-filter",
-            accessibilityValue: names.isEmpty ? "全部标签" : names.joined(separator: "、"),
+        SettingsSelectionPopover(title: emptyTitle,
+            accessibilityLabel: isAssignment ? "选择动作标签" : "按标签筛选组合动作",
+            identifier: isAssignment ? "macro-tag-assignment" : "macro-tag-filter",
+            accessibilityValue: names.isEmpty ? (isAssignment ? "无标签" : emptyTitle) : names.joined(separator: "、"),
             accessibilityHelp: "可选择多个标签，再次点击可取消",
-            label: { MacroTagSelectionLabel(names: names) }) { height, _ in
-            MacroTagFilterMenu(selection: $selection, maximumHeight: height)
+            label: { MacroTagSelectionLabel(names: names, emptyTitle: emptyTitle) }) { height, _ in
+            MacroTagFilterMenu(selection: $selection, tags: tags, showsAll: !isAssignment, maximumHeight: height)
         }
     }
 }
@@ -26,13 +27,14 @@ struct MacroTagFilter: View {
 @MainActor
 private struct MacroTagSelectionLabel: View {
     let names: [String]
+    let emptyTitle: String
 
     var body: some View {
         if names.isEmpty {
-            Text("全部标签")
+            Text(emptyTitle)
         } else {
             ViewThatFits(in: .horizontal) {
-                ForEach((1...names.count).reversed(), id: \.self) { count in
+                ForEach((1...min(names.count, 12)).reversed(), id: \.self) { count in
                     HStack(spacing: 4) {
                         ForEach(names.prefix(count), id: \.self) { name in
                             tag(name)
@@ -59,17 +61,21 @@ private struct MacroTagSelectionLabel: View {
 }
 
 @MainActor
-struct MacroTagFilterMenu: View {
+private struct MacroTagFilterMenu: View {
     @Binding var selection: Set<String>
-    var maximumHeight: CGFloat = 320
+    let tags: [MacroTag]
+    let showsAll: Bool
+    let maximumHeight: CGFloat
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                row("全部标签", selected: selection.isEmpty) { selection.removeAll() }
-                Divider().padding(.horizontal, SettingsStyle.Spacing.inline).padding(.vertical, 4)
-                ForEach(MacroTag.all) { tag in
-                    row(tag.name, selected: selection.contains(tag.id)) {
+            LazyVStack(spacing: 0) {
+                if showsAll {
+                    SettingsSelectionRow(title: "全部标签", selected: selection.isEmpty) { selection.removeAll() }
+                    Divider().padding(.horizontal, SettingsStyle.Spacing.inline).padding(.vertical, 4)
+                }
+                ForEach(tags) { tag in
+                    SettingsSelectionRow(title: tag.name, selected: selection.contains(tag.id)) {
                         if selection.contains(tag.id) { selection.remove(tag.id) }
                         else { selection.insert(tag.id) }
                     }
@@ -77,10 +83,6 @@ struct MacroTagFilterMenu: View {
             }
             .padding(4)
         }
-        .frame(height: min(maximumHeight, CGFloat(MacroTag.all.count + 1) * 28 + 17))
-    }
-
-    private func row(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        SettingsSelectionRow(title: title, selected: selected, action: action)
+        .frame(height: min(maximumHeight, CGFloat(tags.count) * 28 + (showsAll ? 45 : 8)))
     }
 }

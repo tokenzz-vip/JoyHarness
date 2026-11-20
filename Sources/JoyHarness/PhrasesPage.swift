@@ -238,9 +238,7 @@ struct PhrasesPage: View {
                 Text(heading).font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text.wrappedValue, forType: .string)
-                    model.message = "常用语已复制"
+                    model.copyToPasteboard(text.wrappedValue, confirmation: "常用语已复制")
                 } label: {
                     Label("复制", systemImage: "doc.on.doc")
                 }

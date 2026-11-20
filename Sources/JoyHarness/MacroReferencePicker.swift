@@ -27,7 +27,7 @@ struct MacroReferencePicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: SettingsStyle.Spacing.controls) {
             MappingEditorField("筛选标签") {
-                MacroTagFilter(selection: $tagIDs)
+                MacroTagFilter(selection: $tagIDs, tags: model.macroTags)
             }
             MappingEditorField("组合动作") {
                 SettingsSelectionPopover(title: selectionTitle, accessibilityLabel: "组合动作",
@@ -50,6 +50,9 @@ struct MacroReferencePicker: View {
             }
         }
         .font(SettingsStyle.Typography.body)
+        .onChange(of: model.customMacroTags.map(\.id)) { _, _ in
+            tagIDs.formIntersection(model.macroTags.map(\.id))
+        }
     }
 }
 

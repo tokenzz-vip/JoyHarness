@@ -67,13 +67,13 @@ extension DashboardModel {
         guard let pending = pendingPhraseDeletion, pending.id == id else { return }
         guard let phrase = configuration.phrases.first(where: { $0.id == pending.phraseID }) else {
             pendingPhraseDeletion = nil
-            message = "该常用语已删除，请重新选择。"
+            showNotice(.information, "该常用语已删除，请重新选择。")
             return
         }
         let assignments = PhraseAssignments.inputs.filter { configuration.phraseAssignments[$0] == phrase.id }
         guard phrase.displayTitle == pending.name, assignments == pending.assignments else {
             pendingPhraseDeletion = PendingPhraseDeletion(phraseID: phrase.id, name: phrase.displayTitle, assignments: assignments)
-            message = "引用或名称已变化，请核对最新删除影响后再确认。"
+            showNotice(.warning, "引用或名称已变化，请核对最新删除影响后再确认。", issue: .phraseDeletion(phrase.id))
             return
         }
         deletePhrase(phrase.id)
@@ -90,26 +90,32 @@ extension DashboardModel {
         var updated = configuration
         updated.phrases.remove(at: index)
         for input in slots { updated.phraseAssignments[input] = nil }
-        configuration = updated
+        guard saveConfiguration(updated) else { return }
         phraseDeletionUndoStack.append(deleted)
     }
 
     func undoPhraseDeletion() {
         guard let deleted = phraseDeletionUndoStack.last else { return }
         guard !configuration.phrases.contains(where: { $0.id == deleted.id }) else {
-            message = "无法撤销：已有相同 ID 的常用语。"; return
+            showNotice(.warning, "无法撤销：已有相同 ID 的常用语。", issue: .phraseUndo(deleted.id),
+                       resolvedWhen: { !$0.configuration.phrases.contains { $0.id == deleted.id } })
+            return
         }
         guard configuration.phrases.count < 500 else {
-            message = "无法撤销：常用语库已达 500 条上限。"; return
+            showNotice(.warning, "无法撤销：常用语库已达 500 条上限。", issue: .phraseUndo(deleted.id),
+                       resolvedWhen: { $0.configuration.phrases.count < 500 })
+            return
         }
         guard deleted.assignments.allSatisfy({ configuration.phraseAssignments[$0] == nil }) else {
-            message = "无法撤销：原五向位置已重新分配，请先解除新分配后重试。"; return
+            showNotice(.warning, "无法撤销：原五向位置已重新分配，请先解除新分配后重试。", issue: .phraseUndo(deleted.id),
+                       resolvedWhen: { model in deleted.assignments.allSatisfy { model.configuration.phraseAssignments[$0] == nil } })
+            return
         }
         var updated = configuration
         updated.phrases.insert(deleted.phrase, at: deleted.insertionIndex(in: updated.phrases.map(\.id)))
         for input in deleted.assignments { updated.phraseAssignments[input] = deleted.id }
-        configuration = updated
+        guard saveConfiguration(updated) else { return }
         phraseDeletionUndoStack.removeLast()
-        message = "已撤销删除「\(deleted.phrase.displayTitle)」"
+        showNotice(.success, "已撤销删除「\(deleted.phrase.displayTitle)」")
     }
 }
