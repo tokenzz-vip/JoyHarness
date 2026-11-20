@@ -39,6 +39,13 @@ struct StatisticsSummary {
 }
 
 struct StatisticsPage: View {
+    private struct RankingEntry: Identifiable {
+        let rank: Int
+        let key: String
+        let value: Int
+        var id: String { key }
+    }
+
     let statistics: UsageStatistics
     let range: StatisticsRange
     var body: some View {
@@ -69,22 +76,53 @@ struct StatisticsPage: View {
                         .accessibilityLabel("\(range.title)按键次数趋势，共 \(summary.total) 次")
                 }
                 SettingsPanel("按键使用排行 · 全部按键", symbol: "chart.bar.xaxis") {
-                    ForEach(Array(summary.ranking.enumerated()), id: \.element.key) { index, entry in
-                        HStack {
-                            Text("\(index + 1)")
-                                .font(.system(size: 11, weight: .semibold, design: .rounded)).monospacedDigit()
-                                .foregroundStyle(index < 3 ? Color.accentColor : .secondary)
-                                .frame(width: 22, height: 22)
-                                .background(index < 3 ? Color.accentColor.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 6))
-                            Text(ControllerInput(rawValue: entry.key)?.label ?? entry.key).font(SettingsStyle.Typography.body)
-                            Spacer()
-                            Text("\(entry.value) 次").font(.system(size: 12, design: .monospaced))
-                        }.frame(minHeight: 24)
+                    let rankedEntries = summary.ranking.enumerated().map {
+                        RankingEntry(rank: $0.offset + 1, key: $0.element.key, value: $0.element.value)
+                    }
+
+                    VStack(spacing: SettingsStyle.Spacing.inline) {
+                        ForEach(0..<(rankedEntries.count + 1) / 2, id: \.self) { row in
+                            HStack(spacing: SettingsStyle.Spacing.controls) {
+                                rankingRow(rankedEntries[row * 2])
+                                if row * 2 + 1 < rankedEntries.count {
+                                    rankingRow(rankedEntries[row * 2 + 1])
+                                } else {
+                                    Color.clear
+                                        .frame(maxWidth: .infinity, minHeight: 46)
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
     }
+
+    private func rankingRow(_ entry: RankingEntry) -> some View {
+        HStack(spacing: SettingsStyle.Spacing.inline) {
+            Text("\(entry.rank)")
+                .font(.system(size: 11, weight: .semibold, design: .rounded)).monospacedDigit()
+                .foregroundStyle(entry.rank <= 3 ? Color.accentColor : .secondary)
+                .frame(width: 28, height: 28)
+                .background(entry.rank <= 3 ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+            Text(ControllerInput(rawValue: entry.key)?.label ?? entry.key)
+                .font(SettingsStyle.Typography.body)
+                .lineLimit(1)
+                .layoutPriority(1)
+            Spacer(minLength: 8)
+            Text("\(entry.value) 次")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
+        .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 10))
+        .overlay {
+            RoundedRectangle(cornerRadius: 10)
+                .strokeBorder(Color.primary.opacity(0.06))
+        }
+    }
+
     private func metric(_ title: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title).font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
