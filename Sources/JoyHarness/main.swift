@@ -37,16 +37,27 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) { model?.stop() }
     private func makeWindow(_ model: DashboardModel) {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1120, height: 820),
+        let window = Self.dashboardWindow(rootView: DashboardView(model: model))
+        window.setFrameAutosaveName("JoyHarness.main")
+        window.center()
+        self.window = window
+    }
+    static let defaultWindowSize = CGSize(width: 1120, height: 820)
+    static func dashboardWindow<Content: View>(rootView: Content, size: CGSize = defaultWindowSize) -> NSWindow {
+        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView], backing: .buffered, defer: false)
         window.title = "JoyHarness"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
+        window.isReleasedWhenClosed = false
+        let view = NSHostingView(rootView: rootView)
+        // Keep the window at the requested content size across page changes.
+        view.sizingOptions = []
+        window.contentView = view
         window.contentMinSize = DashboardStyle.minimumWindowSize
-        window.contentView = NSHostingView(rootView: DashboardView(model: model))
-        window.isReleasedWhenClosed = false; window.setFrameAutosaveName("JoyHarness.main"); window.center()
-        self.window = window
+        window.setContentSize(size)
+        return window
     }
     @objc private func showWindow() { NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
     @objc private func toggleMapping() { model?.toggleMapping() }
@@ -118,19 +129,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             }
         }
         let dark = arguments.contains("--dark")
-        let size = arguments.contains("--narrow") ? DashboardStyle.minimumWindowSize : CGSize(width: 1120, height: 820)
-        let view = NSHostingView(rootView: DashboardView(model: model)
-            .environment(\.colorScheme, dark ? .dark : .light))
-        let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.titled, .fullSizeContentView], backing: .buffered, defer: false)
-        window.titleVisibility = .hidden
-        window.titlebarAppearsTransparent = true
-        window.titlebarSeparatorStyle = .none
-        window.contentView = view; window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        let size = arguments.contains("--narrow") ? DashboardStyle.minimumWindowSize : Self.defaultWindowSize
+        let window = Self.dashboardWindow(
+            rootView: DashboardView(model: model).environment(\.colorScheme, dark ? .dark : .light),
+            size: size
+        )
+        guard let view = window.contentView else { throw RenderFailure.bitmap }
+        window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         for page in DashboardPage.allCases {
             model.page = page
-            view.frame = CGRect(origin: .zero, size: size)
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
             try render(view, to: directory.appendingPathComponent(page.rawValue + ".png"))
         }

@@ -11,9 +11,8 @@ struct MacrosPage: View {
     @State private var deleting = false
 
     private var visibleMacros: [ActionMacro] {
-        model.savedMacros.filter { macro in
-            selectedTagIDs.isEmpty || !macro.tagIDs.isDisjoint(with: selectedTagIDs)
-        }
+        guard !selectedTagIDs.isEmpty else { return model.savedMacros }
+        return model.savedMacros.filter { !$0.tagIDs.isDisjoint(with: selectedTagIDs) }
     }
 
     init(model: DashboardModel) {
@@ -68,7 +67,9 @@ struct MacrosPage: View {
     }
 
     private var macroList: some View {
-        SettingsPanel(contentPadding: EdgeInsets(top: SettingsStyle.panelPadding, leading: SettingsStyle.panelPadding,
+        let macros = visibleMacros
+        let tags = model.macroTags
+        return SettingsPanel(contentPadding: EdgeInsets(top: SettingsStyle.panelPadding, leading: SettingsStyle.panelPadding,
                                                bottom: SettingsStyle.controlPadding, trailing: SettingsStyle.compactControlPadding)) {
             HStack(spacing: SettingsStyle.Spacing.inline) {
                 Text("我的组合动作").font(SettingsStyle.Typography.panelTitle)
@@ -101,12 +102,13 @@ struct MacrosPage: View {
                                 Text("创建第一个组合动作").frame(maxWidth: .infinity)
                             }.buttonStyle(.borderedProminent)
                         }
-                        if !model.savedMacros.isEmpty && visibleMacros.isEmpty {
+                        if !model.savedMacros.isEmpty && macros.isEmpty {
                             SettingsEmpty(symbol: "tag", title: "此标签下还没有动作", detail: "切换标签，或新建一个组合动作。")
                             Button("显示全部动作") { selectedTagIDs.removeAll() }
                                 .buttonStyle(.link)
                         }
-                        ForEach(visibleMacros) { macro in
+                        ForEach(macros) { macro in
+                            let summary = tags.filter { macro.tagIDs.contains($0.id) }.map(\.name).joined(separator: " · ")
                             Button { selectedMacroID = macro.id } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 3) {
@@ -114,11 +116,11 @@ struct MacrosPage: View {
                                             .lineLimit(2)
                                         Text("\(macro.steps.count) 个步骤").font(.caption).foregroundStyle(.secondary)
                                         if !macro.tagIDs.isEmpty {
-                                            Text(tagSummary(macro))
+                                            Text(summary)
                                                 .font(SettingsStyle.Typography.caption)
                                                 .foregroundStyle(.secondary)
                                                 .lineLimit(2)
-                                                .help(tagSummary(macro))
+                                                .help(summary)
                                         }
                                     }
                                     Spacer(minLength: 4)
@@ -131,7 +133,6 @@ struct MacrosPage: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityAddTraits(selectedMacroID == macro.id ? .isSelected : [])
-                            .id(macro.id)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -152,10 +153,6 @@ struct MacrosPage: View {
 
     private var tagFilterPicker: some View {
         MacroTagFilter(selection: $selectedTagIDs, tags: model.macroTags)
-    }
-
-    private func tagSummary(_ macro: ActionMacro) -> String {
-        model.macroTags.filter { macro.tagIDs.contains($0.id) }.map(\.name).joined(separator: " · ")
     }
 
     private func tagEditor(_ macro: ActionMacro) -> some View {
