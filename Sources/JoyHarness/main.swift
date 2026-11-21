@@ -63,9 +63,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleMapping() { model?.toggleMapping() }
     @objc private func rescan() { model?.rescan() }
     @objc private func selectController(_ sender: NSMenuItem) {
-        guard let id = sender.representedObject as? String else { return }
-        if let profile = JoyConProfile.all.first(where: { "profile:" + $0.id == id }) { model?.selectControllerProfile(profile) }
-        else { model?.selectDevice(id) }
+        guard let model else { return }
+        ControllerDeviceMenuContent.select(sender, model: model)
     }
     @objc private func quit() { NSApp.terminate(nil) }
     private func updateMenu() {

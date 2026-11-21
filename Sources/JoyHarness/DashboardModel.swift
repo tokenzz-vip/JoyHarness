@@ -211,7 +211,8 @@ final class DashboardModel: ObservableObject {
     var controllerTitle: String {
         guard controllerSelection.profileID != nil else { return "选择手柄" }
         let name = controllerProfile.name
-        if let device = selectedDevice, devices.filter({ $0.profile == device.profile }).count > 1 {
+        guard let device = selectedDevice, device.ready else { return name }
+        if devices.filter({ $0.profile == device.profile && $0.ready }).count > 1 {
             return name + " · " + device.identitySuffix
         }
         return name
@@ -228,7 +229,7 @@ final class DashboardModel: ObservableObject {
         }
     }
     func selectDevice(_ id: String) {
-        guard let device = devices.first(where: { $0.id == id }), controllerSelection.deviceID != id else { return }
+        guard let device = devices.first(where: { $0.id == id && $0.ready }), controllerSelection.deviceID != id else { return }
         controllerSelection.select(device)
         applyControllerSelection()
     }
@@ -332,7 +333,8 @@ final class DashboardModel: ObservableObject {
               let macro = configuration.macros.first(where: { $0.id == mapping.macroID }) else { return mapping.summary }
         return DefaultMacros.cardTitle(for: macro)
     }
-    var connectedCount: Int { devices.filter(\.ready).count }
+    var connectedDevices: [ConnectedJoyCon] { devices.filter(\.ready) }
+    var connectedCount: Int { connectedDevices.count }
     private var canSend: Bool { !preview && accessibility && !recordingShortcut && pendingConfigurationImport == nil }
 
     func start() {
@@ -721,7 +723,7 @@ final class DashboardModel: ObservableObject {
     func copyDiagnostics() {
         let devices = devices.map { "\($0.profile.name): \($0.status)" }.joined(separator: "\n")
         let report = """
-        JoyHarness \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
+        JoyHarness \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0")
         \(ProcessInfo.processInfo.operatingSystemVersionString)
         选中手柄：\(controllerTitle)
         映射：\(enabled ? "启用" : "暂停")

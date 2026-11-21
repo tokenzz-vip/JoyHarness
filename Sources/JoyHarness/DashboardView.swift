@@ -339,13 +339,14 @@ struct DashboardView: View {
                     Text(model.bleStatus).font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                 }
                 SettingsPanel("手柄设备", symbol: "gamecontroller") {
-                    if model.devices.isEmpty {
-                        Text("尚未发现手柄。一代在系统蓝牙中配对；二代长按 SYNC 后重新扫描。")
+                    let devices = model.connectedDevices
+                    if devices.isEmpty {
+                        Text("当前没有已连接的手柄。一代可在系统蓝牙中配对，二代可长按 SYNC 后重新扫描。")
                             .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
                     }
-                    ForEach(model.devices) { device in
+                    ForEach(devices) { device in
                         deviceRow(device)
-                        if device.id != model.devices.last?.id { Divider() }
+                        if device.id != devices.last?.id { Divider() }
                     }
                     Text("切换会释放旧手柄的按键。请松开新手柄的按键并让摇杆回中后再操作。断线后保留选择，等待原手柄重连。")
                         .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -379,7 +380,7 @@ struct DashboardView: View {
     }
     private func deviceRow(_ device: ConnectedJoyCon) -> some View {
         HStack(spacing: 12) {
-            Circle().fill(device.ready ? Color.green : .secondary).frame(width: 6, height: 6)
+            Circle().fill(Color.green).frame(width: 6, height: 6)
             VStack(alignment: .leading, spacing: 5) {
                 Text(device.profile.name).font(SettingsStyle.Typography.body.weight(.semibold))
                 Text(device.identitySuffix + " · " + device.status)
@@ -435,11 +436,10 @@ struct DashboardView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("当前版本").foregroundStyle(.secondary)
-                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1.0")
+                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0")
                                 .font(.system(size: 14, weight: .semibold)).monospacedDigit()
                         }.font(SettingsStyle.Typography.body)
                         Text("Apple Silicon · macOS 15 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
-                        Text("配置与统计仅保存在这台 Mac。").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                         AppUpdateSettingsView(model: model.updates)
                     }.frame(width: 300, alignment: .leading)
                 }.fixedSize(horizontal: false, vertical: true)

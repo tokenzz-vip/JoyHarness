@@ -114,12 +114,15 @@ struct ControllerSelectionTests {
         transport.send("second", second, buttons: [.a])
         #expect(events.last == "enter:true"); #expect(model.pressed == [.a])
         transport.onDisconnect?("first"); #expect(events.last == "enter:true")
+        #expect(model.connectedDevices.map(\.id) == ["second"])
         transport.onDisconnect?("second"); #expect(events.last == "enter:false"); #expect(model.pressed.isEmpty)
+        #expect(model.connectedDevices.isEmpty)
         transport.announce("first", first)
         #expect(model.controllerSelection.deviceID == "second"); #expect(!model.selectedDeviceReady)
         let restored = DashboardModel(defaults: defaults, preview: true, transports: [])
         #expect(restored.controllerSelection.deviceID == "second")
         transport.announce("second", second); transport.send("second", second, buttons: [.a])
+        #expect(model.connectedDevices.map(\.id) == ["first", "second"])
         #expect(events.last == "enter:false")
         transport.send("second", second); transport.send("second", second, buttons: [.a])
         #expect(events.last == "enter:true")
@@ -184,7 +187,7 @@ struct ControllerSelectionTests {
 
 @MainActor
 struct ControllerMenuTests {
-    @Test func nativeMenuDistinguishesEqualModelsAndTracksSelection() {
+    @Test func nativeMenuDistinguishesEqualModelsAndTracksSelection() throws {
         let suite = "JoyHarness.tests.\(UUID())", defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let transport = FakeTransport()
@@ -194,6 +197,8 @@ struct ControllerMenuTests {
         transport.announce("ble-device-222222", profile)
         model.selectDevice("ble-device-222222")
         let menu = ControllerDeviceMenuContent.make(model: model, target: nil, action: nil)
+        let waitingIDs = JoyConProfile.all.dropLast().map { "profile:" + $0.id }
+        #expect(menu.items.compactMap { $0.representedObject as? String } == waitingIDs + ["ble-device-111111", "ble-device-222222"])
         let items = menu.items.filter { ($0.representedObject as? String)?.hasPrefix("ble-device-") == true }
         #expect(items.count == 2)
         #expect(items.map { $0.title.components(separatedBy: "\t")[0] } == ["Joy-Con 2 (R) · 111111", "Joy-Con 2 (R) · 222222"])
@@ -201,8 +206,34 @@ struct ControllerMenuTests {
         #expect(items[0].isEnabled); #expect(!items[1].isEnabled)
         #expect(model.controllerTitle == "Joy-Con 2 (R) · 222222")
         transport.onDisconnect?("ble-device-111111")
+        let afterDisconnect = ControllerDeviceMenuContent.make(model: model, target: nil, action: nil)
+        #expect(afterDisconnect.items.compactMap { $0.representedObject as? String } == waitingIDs + ["ble-device-222222"])
+        model.selectDevice("ble-device-111111")
+        #expect(model.controllerSelection.deviceID == "ble-device-222222")
         #expect(model.selectedDeviceReady)
+        #expect(model.controllerTitle == "Joy-Con 2 (R)")
+
+        transport.onDisconnect?("ble-device-222222")
+        let emptyMenu = ControllerDeviceMenuContent.make(model: model, target: nil, action: nil)
+        let waitingItems = emptyMenu.items.filter { $0.representedObject != nil }
+        #expect(waitingItems.compactMap { $0.representedObject as? String } == JoyConProfile.all.map { "profile:" + $0.id })
+        #expect(waitingItems.map { $0.title.components(separatedBy: "\t")[0] } == JoyConProfile.all.map(\.name))
+        #expect(waitingItems.allSatisfy { $0.isEnabled })
+        #expect(model.controllerSelection.deviceID == "ble-device-222222")
+        #expect(model.controllerTitle == "Joy-Con 2 (R)")
+
+        transport.announce("ble-device-222222", profile)
+        let afterReconnect = ControllerDeviceMenuContent.make(model: model, target: nil, action: nil)
+        let reconnectedItems = afterReconnect.items.filter { $0.representedObject != nil }
+        #expect(reconnectedItems.compactMap { $0.representedObject as? String } == waitingIDs + ["ble-device-222222"])
+        #expect(reconnectedItems.last?.state == .on)
+        #expect(model.controllerTitle == "Joy-Con 2 (R)")
         #expect(model.statistics.total == 0)
+
+        let waitingItem = try #require(reconnectedItems.first)
+        ControllerDeviceMenuContent.select(waitingItem, model: model)
+        #expect(model.controllerSelection.profile == JoyConProfile.all[0])
+        #expect(model.controllerSelection.deviceID == nil)
     }
     @Test func preferencesNamesAndStatisticsPersistWithoutPreviewSideEffects() {
         let suite = "JoyHarness.tests.\(UUID())", defaults = UserDefaults(suiteName: suite)!
