@@ -86,6 +86,7 @@ final class InputEngine {
     private var awaitingNeutralStick = true
     private var pointerRemainder = CGPoint.zero
     private var heldOutputs: [ButtonMapping: Int] = [:]
+    private var activeVoiceTap: ButtonMapping?
     private(set) var mouseButtonBindings = MouseButtonBindings()
     private var pausedMapping = RemoteMapping()
     private var activeStickMode = StickMode.mapped
@@ -213,21 +214,40 @@ final class InputEngine {
             guard !inputCaptured else { return }
             if input.isStickDirection && revision != stickModeRevision { continue }
             buttonPressed?(input)
-            gestures.handle(.init(deviceID: id, input: input), pressed: true,
-                            mapping: mappingFor(input, mapping: enabled ? self.profile.mapping : pausedMapping,
-                                                mode: activeStickMode))
+            let mapping = mappingFor(input, mapping: enabled ? self.profile.mapping : pausedMapping, mode: activeStickMode)
+            let action = mapping[input]
+            if action.voiceShortcut?.mode == .tap {
+                activeVoiceTap = activeVoiceTap == nil ? action : nil
+                pulseVoiceShortcut(action)
+                continue
+            }
+            if !input.isStickDirection { endVoiceTap() }
+            gestures.handle(.init(deviceID: id, input: input), pressed: true, mapping: mapping)
         }
     }
     func disconnect(_ id: String) {
         gestures.cancel(deviceID: id); devices[id] = nil
         if id == selectedDeviceID {
+            endVoiceTap()
             pointerRemainder = .zero
             awaitingFirstReport = true; awaitingNeutralStick = true; suppressedButtons = []
         }
     }
     func cancel() {
         pointerRemainder = .zero
+        endVoiceTap()
         gestures.cancel()
+    }
+
+    private func pulseVoiceShortcut(_ mapping: ButtonMapping) {
+        emit(mapping, pressed: true)
+        emit(mapping, pressed: false)
+    }
+
+    private func endVoiceTap() {
+        guard let mapping = activeVoiceTap else { return }
+        activeVoiceTap = nil
+        pulseVoiceShortcut(mapping)
     }
     func tick() {
         for (id, device) in Array(devices) {

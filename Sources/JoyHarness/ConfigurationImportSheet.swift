@@ -24,8 +24,7 @@ struct ConfigurationImportSheet: View {
                     Text(preview.isRecovery ? "恢复后" : "导入后").gridColumnAlignment(.trailing)
                 }.font(SettingsStyle.Typography.caption.weight(.medium)).foregroundStyle(.secondary)
                 Divider().gridCellUnsizedAxes(.horizontal)
-                countRow("全局按键", current.globalButtons.values.flatMap { $0 }.compactMap(\.input).count,
-                         next.globalButtons.values.flatMap { $0 }.compactMap(\.input).count)
+                countRow("全局按键", current.globalButtonCount, next.globalButtonCount)
                 countRow("键位方案", current.profiles.count, next.profiles.count)
                 countRow("Harness 应用及绑定", current.harnesses.count, next.harnesses.count)
                 countRow("组合动作", current.macros.count, next.macros.count)

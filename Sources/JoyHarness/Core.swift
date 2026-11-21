@@ -115,12 +115,13 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable {
     case mouseLeft, mouseRight, pointerUp, pointerDown, pointerLeft, pointerRight, scrollUp, scrollDown
     case volumeUp, volumeDown, mute, playPause, recordedShortcut, openApplication, phrase, openPhrases, macro, disabled
     case focusChatGPT, focusClaude, focusCursor, focusDeepSeek, focusWorkBuddy, focusOpenCode
+    case voiceShortcut
 
     static let harnessFocusActions: [Self] = [.focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode]
 
     var canRunInMacro: Bool {
         switch self {
-        case .toggleMode, .openPhrases, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode: false
+        case .toggleMode, .openPhrases, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode, .voiceShortcut: false
         default: true
         }
     }
@@ -150,6 +151,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable {
         case .pointerUp: "指针 ↑"; case .pointerDown: "指针 ↓"; case .pointerLeft: "指针 ←"; case .pointerRight: "指针 →"
         case .scrollUp: "向上滚动"; case .scrollDown: "向下滚动"; case .volumeUp: "音量 +"; case .volumeDown: "音量 −"
         case .mute: "静音"; case .playPause: "播放 / 暂停"; case .recordedShortcut: "自定义快捷键"
+        case .voiceShortcut: "语音快捷键"
         case .openApplication: "打开应用"; case .phrase: "输入文本"; case .openPhrases: "唤出常用语"; case .macro: "组合动作"; case .disabled: "未设置"
         case .focusChatGPT: "打开聚焦ChatGPT"; case .focusClaude: "打开聚焦Claude"; case .focusCursor: "打开聚焦Cursor"
         case .focusDeepSeek: "打开聚焦DeepSeek"; case .focusWorkBuddy: "打开聚焦WorkBuddy"; case .focusOpenCode: "打开聚焦OpenCode"
@@ -167,6 +169,7 @@ struct ButtonMapping: Codable, Equatable, Hashable {
     var applicationPath: String?
     var text: String?
     var macroID: UUID?
+    var voiceShortcut: VoiceShortcut?
     var summary: String {
         switch action {
         case .recordedShortcut: shortcut?.label ?? action.label
@@ -313,6 +316,7 @@ struct Configuration: Codable, Equatable {
     var profiles: [KeyProfile] = [.init()]
     var defaultProfileID: UUID?
     var globalButtons = Self.defaultGlobalButtons(from: .defaults)
+    var voiceButtons = Self.defaultVoiceButtons
     var mouseButtons: [String: MouseButtonBindings] = [:]
     var harnesses: [HarnessBinding] = []
     static let customMacroLimit = 100
@@ -330,7 +334,7 @@ struct Configuration: Codable, Equatable {
 
     private enum CodingKeys: String, CodingKey {
         case version, profiles, defaultProfileID, globalButtons, mouseButtons, harnesses, macros, macroPresetsVersion, profilePresetsVersion, deadzone, pointerSpeed, centers, phrases, phraseAssignments
-        case phrasePresetsVersion, globalGestureOverrides, customMacroTags
+        case phrasePresetsVersion, globalGestureOverrides, customMacroTags, voiceButtons
     }
 
     init() {}
@@ -348,6 +352,13 @@ struct Configuration: Codable, Equatable {
             globalButtons = Self.defaultGlobalButtons(from: defaultMapping)
         }
         mouseButtons = try values.decodeIfPresent([String: MouseButtonBindings].self, forKey: .mouseButtons) ?? [:]
+        if let saved = try values.decodeIfPresent([String: VoiceButton].self, forKey: .voiceButtons) {
+            voiceButtons = saved
+        } else {
+            for profile in JoyConProfile.all where !voiceInputChoices(for: profile).contains(profile.defaultVoiceInput) {
+                voiceButtons[profile.id] = VoiceButton(input: nil)
+            }
+        }
         harnesses = try values.decodeIfPresent([HarnessBinding].self, forKey: .harnesses) ?? []
         macros = try values.decodeIfPresent([ActionMacro].self, forKey: .macros) ?? []
         customMacroTags = try values.decodeIfPresent([MacroTag].self, forKey: .customMacroTags) ?? []
@@ -365,6 +376,7 @@ struct Configuration: Codable, Equatable {
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encode(version, forKey: .version); try values.encode(profiles, forKey: .profiles)
         try values.encode(globalButtons, forKey: .globalButtons)
+        try values.encode(voiceButtons, forKey: .voiceButtons)
         try values.encode(true, forKey: .globalGestureOverrides)
         try values.encode(mouseButtons, forKey: .mouseButtons)
         try values.encodeIfPresent(defaultProfileID, forKey: .defaultProfileID); try values.encode(harnesses, forKey: .harnesses)
@@ -399,6 +411,8 @@ struct Configuration: Codable, Equatable {
               phraseAssignments.slots.keys.allSatisfy({ key in PhraseAssignments.inputs.contains(where: { $0.rawValue == key }) }),
               profiles.allSatisfy({ $0.mapping.buttons.values.allSatisfy(validMapping) }),
               Set(globalButtons.keys) == Set(JoyConProfile.all.map(\.id)),
+              Set(voiceButtons.keys) == Set(globalButtons.keys),
+              voiceButtons.values.allSatisfy({ (1...2).contains($0.tapKeys.count) }),
               mouseButtons.allSatisfy({ key, bindings in
                   guard let profile = JoyConProfile.all.first(where: { $0.id == key }) else { return false }
                   let global = Set(globalButtons[profile.id, default: []].compactMap(\.input))
@@ -409,6 +423,9 @@ struct Configuration: Codable, Equatable {
               JoyConProfile.all.allSatisfy({ profile in
                   guard let buttons = globalButtons[profile.id], buttons.first?.input != nil else { return false }
                   let inputs = buttons.compactMap(\.input)
+                  if let voice = voiceButtons[profile.id]?.input, !voiceInputChoices(for: profile).contains(voice) {
+                      return false
+                  }
                   return Set(buttons.map(\.id)).count == buttons.count
                       && Set(inputs).count == inputs.count
                       && Set(inputs).isSubset(of: Set(profile.physicalInputs))
@@ -424,7 +441,9 @@ struct Configuration: Codable, Equatable {
         return result
     }
     private func validMapping(_ mapping: ButtonMapping) -> Bool {
+        guard mapping.voiceShortcut == nil else { return false }
         switch mapping.action {
+        case .voiceShortcut: return false
         case .macro: return macros.contains { $0.id == mapping.macroID }
         case .recordedShortcut: return mapping.shortcut.map { $0.keyCode <= 127 } ?? false
         case .openApplication: return mapping.applicationPath?.hasPrefix("/") == true

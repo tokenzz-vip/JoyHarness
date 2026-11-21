@@ -74,7 +74,11 @@ struct DashboardView: View {
             ConfigurationImportSheet(model: model, preview: preview)
         }
         .sheet(item: $editing) { input in
-            MappingEditor(model: model, input: input, gesture: gesture)
+            if model.voiceInput == input {
+                VoiceButtonEditor(model: model, input: input)
+            } else {
+                MappingEditor(model: model, input: input, gesture: gesture)
+            }
         }
         .sheet(item: $profileNaming) { request in
             let creating = request == .new
@@ -98,7 +102,9 @@ struct DashboardView: View {
         .onChange(of: model.macroBindingRequest) { _, id in
             if id != nil {
                 gesture = .single
-                editing = model.controllerProfile.side == .left ? .up : .a
+                let preferred: ControllerInput = model.controllerProfile.side == .left ? .up : .a
+                editing = model.voiceInput == preferred
+                    ? model.controllerInputs.first { $0 != model.voiceInput } : preferred
             }
         }
         .overlay(alignment: .topTrailing) {

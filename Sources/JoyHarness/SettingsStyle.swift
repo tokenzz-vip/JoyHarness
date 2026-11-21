@@ -32,6 +32,9 @@ enum SettingsStyle {
     }
 
     static let subtle = Color.primary.opacity(0.035)
+    static func shortcutPopoverBackground(in colorScheme: ColorScheme) -> Color {
+        Color(white: colorScheme == .dark ? 0.11 : 0.99)
+    }
     static let switchOn = Color.blue
     static var inactiveSwitchOn: Color {
         Color(nsColor: NSColor.systemBlue.blended(withFraction: 0.45, of: .systemGray) ?? .systemBlue)

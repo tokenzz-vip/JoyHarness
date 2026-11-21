@@ -30,21 +30,13 @@ private enum MediaKey {
     static let play = 16
 }
 
-/// Device-dependent flags from IOLLEvent.h. Shortcut listeners may use these
-/// bits to distinguish both the side and the down/up edge of a modifier.
-private enum ModifierDeviceFlag {
-    static let leftCommand = CGEventFlags(rawValue: 0x08) // NX_DEVICELCMDKEYMASK
-    static let rightCommand = CGEventFlags(rawValue: 0x10) // NX_DEVICERCMDKEYMASK
-    static let leftOption = CGEventFlags(rawValue: 0x20) // NX_DEVICELALTKEYMASK
-    static let rightOption = CGEventFlags(rawValue: 0x40) // NX_DEVICERALTKEYMASK
-}
-
 /// Every synthesized event goes through `postEvent`, so tests can observe all
 /// output without posting into the real session.
 final class SystemEventSender {
     // Posting at cghidEventTap does not change a nil source's state table.
     // Keep Fn in the HID table, as on the physical Fn/Globe keyboard path.
     private let functionKeySource = CGEventSource(stateID: .hidSystemState)
+    private var heldModifiers: [VoiceShortcutKey: Int] = [:]
     private var leftMouseHeld = false
     private var rightMouseHeld = false
     private let cursorLocation: () -> CGPoint
@@ -73,16 +65,16 @@ final class SystemEventSender {
         case .arrowDown: key(VirtualKey.downArrow, pressed: pressed)
         case .arrowLeft: key(VirtualKey.leftArrow, pressed: pressed)
         case .arrowRight: key(VirtualKey.rightArrow, pressed: pressed)
-        case .rightCommand: key(VirtualKey.rightCommand, flags: pressed ? [.maskCommand, ModifierDeviceFlag.rightCommand] : [], pressed: pressed)
-        case .leftCommand: key(VirtualKey.command, flags: pressed ? [.maskCommand, ModifierDeviceFlag.leftCommand] : [], pressed: pressed)
-        case .fn:
-            guard let functionKeySource else {
-                Log.hid.error("Cannot create HID event source for Fn")
-                return
+        case .rightCommand: modifier(.rightCommand, pressed: pressed)
+        case .leftCommand: modifier(.leftCommand, pressed: pressed)
+        case .fn: modifier(.function, pressed: pressed)
+        case .leftOption: modifier(.leftOption, pressed: pressed)
+        case .rightOption: modifier(.rightOption, pressed: pressed)
+        case .voiceShortcut:
+            if let shortcut = mapping.voiceShortcut {
+                let keys = shortcut.orderedKeys
+                for key in pressed ? keys : Array(keys.reversed()) { modifier(key, pressed: pressed) }
             }
-            key(VirtualKey.function, flags: pressed ? .maskSecondaryFn : [], pressed: pressed, source: functionKeySource)
-        case .leftOption: key(VirtualKey.option, flags: pressed ? [.maskAlternate, ModifierDeviceFlag.leftOption] : [], pressed: pressed)
-        case .rightOption: key(VirtualKey.rightOption, flags: pressed ? [.maskAlternate, ModifierDeviceFlag.rightOption] : [], pressed: pressed)
         case .copy: key(VirtualKey.c, flags: pressed ? .maskCommand : [], pressed: pressed)
         case .paste: key(VirtualKey.v, flags: pressed ? .maskCommand : [], pressed: pressed)
         case .browserBack: key(VirtualKey.leftBracket, flags: pressed ? .maskCommand : [], pressed: pressed)
@@ -136,6 +128,24 @@ final class SystemEventSender {
         let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: pressed)
         event?.flags = flags
         if let event { postEvent(event) }
+    }
+
+    private func modifier(_ modifier: VoiceShortcutKey, pressed: Bool) {
+        if modifier == .function && functionKeySource == nil {
+            Log.hid.error("Cannot create HID event source for Fn")
+            return
+        }
+        let count = heldModifiers[modifier, default: 0]
+        if pressed {
+            heldModifiers[modifier] = count + 1
+            guard count == 0 else { return }
+        } else {
+            guard count > 0 else { return }
+            heldModifiers[modifier] = count > 1 ? count - 1 : nil
+            guard count == 1 else { return }
+        }
+        let flags = heldModifiers.keys.reduce(CGEventFlags()) { $0.union($1.flags) }
+        key(modifier.keyCode, flags: flags, pressed: pressed, source: modifier == .function ? functionKeySource : nil)
     }
 
     func pointer(from current: CGPoint, to point: CGPoint) {

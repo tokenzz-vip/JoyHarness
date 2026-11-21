@@ -194,7 +194,54 @@ struct MappingPage: View {
         let active = emphasized.contains(input)
         let pressed = model.pressed.contains(input)
         let shape = RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
-        return VStack(alignment: .leading, spacing: 2) {
+        return Group {
+            if model.voiceInput == input {
+                voiceCard(input, height: height)
+            } else {
+                gestureCard(input, pressed: pressed)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(height: height)
+            }
+        }
+        .background(active ? Color.accentColor.opacity(pressed ? 0.17 : 0.09) : SettingsStyle.subtle, in: shape)
+        .overlay {
+            shape.strokeBorder(active ? Color.accentColor.opacity(pressed ? 0.82 : 0.5) : Color.primary.opacity(0.07))
+                .allowsHitTesting(false)
+        }
+        .onHover { hovering in
+            if hovering { hoveredCard = input }
+            else if hoveredCard == input { hoveredCard = nil }
+        }
+    }
+
+    private func voiceCard(_ input: ControllerInput, height: CGFloat) -> some View {
+        let shortcut = model.voiceButton.shortcut
+        let summary = "\(shortcut.mode.title) · \(shortcut.label)"
+        return Button { onEdit(input, .single) } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Label(input.label, systemImage: "mic").font(.system(size: 12, weight: .semibold))
+                    Spacer()
+                    Text("全局").foregroundStyle(Color.accentColor)
+                }
+                Text(summary).foregroundStyle(.secondary).lineLimit(1)
+            }
+            .font(SettingsStyle.Typography.caption)
+            .padding(8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: height)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .focused($focusedTrigger, equals: .init(input: input, gesture: .single))
+        .accessibilityLabel(input.label)
+        .accessibilityValue(summary)
+        .help("编辑语音模式和快捷键")
+    }
+
+    private func gestureCard(_ input: ControllerInput, pressed: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
                 Label(input.label, systemImage: input.symbol).fontWeight(.semibold)
                 Spacer(minLength: 0)
@@ -207,22 +254,8 @@ struct MappingPage: View {
             }
             .font(SettingsStyle.Typography.caption)
             HStack(spacing: 0) {
-                ForEach(Gesture.allCases) { trigger in
-                    triggerButton(input, trigger: trigger)
-                }
+                ForEach(Gesture.allCases) { trigger in triggerButton(input, trigger: trigger) }
             }
-        }
-        .padding(.horizontal, 8).padding(.vertical, 3)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: height)
-        .background(active ? Color.accentColor.opacity(pressed ? 0.17 : 0.09) : SettingsStyle.subtle, in: shape)
-        .overlay {
-            shape.strokeBorder(active ? Color.accentColor.opacity(pressed ? 0.82 : 0.5) : Color.primary.opacity(0.07))
-                .allowsHitTesting(false)
-        }
-        .onHover { hovering in
-            if hovering { hoveredCard = input }
-            else if hoveredCard == input { hoveredCard = nil }
         }
     }
 

@@ -123,7 +123,8 @@ struct MappingEditor: View {
         return Binding(get: { actions[trigger] ?? .init() }, set: { actions[trigger] = $0 })
     }
     private var scopeMatches: Bool {
-        scope.controllerID == model.controllerProfile.id && scope.globalButtonID == model.globalButton(for: input)?.id
+        model.voiceInput != input && scope.controllerID == model.controllerProfile.id
+            && scope.globalButtonID == model.globalButton(for: input)?.id
             && (scope.globalButtonID != nil || scope.profileID == model.selectedProfileID)
     }
     var body: some View {
@@ -207,6 +208,7 @@ struct ActionFields: View {
 
     private var availableActions: [RemoteAction] {
         RemoteAction.allCases.filter { action in
+            guard action != .voiceShortcut else { return false }
             let legacyModeAction = [.cycleLeftStickMode, .cycleRightStickMode].contains(action)
             let unavailable = [.macro, .toggleMode, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode].contains(action)
             return (!legacyModeAction || mapping.action == action) && (allowMacro || !unavailable)

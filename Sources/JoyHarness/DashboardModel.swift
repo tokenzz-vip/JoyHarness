@@ -136,7 +136,7 @@ final class DashboardModel: ObservableObject {
         }
         let initialConfiguration = StoredConfiguration(configuration: config, recovery: stored?.recovery)
         storedConfiguration = initialConfiguration
-        if config != valid || savedFields?["globalGestureOverrides"] as? Bool != true {
+        if config != valid || savedFields?["globalGestureOverrides"] as? Bool != true || savedFields?["voiceButtons"] == nil {
             SettingsStorage.save(initialConfiguration, SettingsKeys.configuration, defaults: defaults)
         }
         let editingID = defaults.string(forKey: "JoyHarness.editingProfile").flatMap(UUID.init(uuidString:))
@@ -220,12 +220,15 @@ final class DashboardModel: ObservableObject {
     var selectedDeviceReady: Bool { selectedDevice?.ready == true }
     var controllerInputs: [ControllerInput] { controllerProfile.physicalInputs }
     var globalButtons: [GlobalButton] { configuration.globalButtons[controllerProfile.id] ?? [] }
+    var voiceButton: VoiceButton { configuration.voiceButtons[controllerProfile.id] ?? .init(input: nil) }
+    var voiceInput: ControllerInput? { voiceButton.input }
+    var voiceInputChoices: [ControllerInput] { configuration.voiceInputChoices(for: controllerProfile) }
     var mouseButtonBindings: MouseButtonBindings { configuration.mouseButtons[controllerProfile.id] ?? .init() }
     func mouseButtonChoices(for role: MouseButtonRole) -> [ControllerInput] {
         let global = Set(globalButtons.compactMap(\.input))
         let other = role == .left ? mouseButtonBindings.right : mouseButtonBindings.left
         return controllerInputs.filter { input in
-            !input.isStickButton && !input.isStickDirection && !global.contains(input) && input != other
+            !input.isStickButton && !input.isStickDirection && !global.contains(input) && input != voiceInput && input != other
         }
     }
     func selectDevice(_ id: String) {
@@ -414,7 +417,20 @@ final class DashboardModel: ObservableObject {
     }
     func globalInputChoices(for id: UUID) -> [ControllerInput] {
         let assigned = Set(globalButtons.filter { $0.id != id }.compactMap(\.input))
-        return controllerInputs.filter { !assigned.contains($0) }
+        return controllerInputs.filter { !assigned.contains($0) && $0 != voiceInput }
+    }
+    func setVoiceInput(_ input: ControllerInput?) {
+        guard input != voiceInput, input.map(voiceInputChoices.contains) ?? true else { return }
+        var button = voiceButton
+        button.input = input
+        configuration.voiceButtons[controllerProfile.id] = button
+    }
+    func saveVoiceButton(_ button: VoiceButton, controllerID: String) -> Bool {
+        guard controllerProfile.id == controllerID, let input = button.input, input == voiceInput,
+              (1...2).contains(button.tapKeys.count) else { return false }
+        var next = configuration
+        next.voiceButtons[controllerID] = button
+        return saveConfiguration(next)
     }
     func setGlobalInput(_ input: ControllerInput?, for id: UUID) {
         var buttons = globalButtons
@@ -450,6 +466,7 @@ final class DashboardModel: ObservableObject {
         saveMappings([gesture: mapping], input: input)
     }
     func saveMappings(_ actions: [Gesture: ButtonMapping], input: ControllerInput) {
+        guard input != voiceInput else { return }
         var buttons = globalButtons
         if let index = buttons.firstIndex(where: { $0.input == input }) {
             buttons[index].actions.merge(actions) { _, edited in edited }
@@ -624,7 +641,9 @@ final class DashboardModel: ObservableObject {
     }
 
     private func installConfiguration(_ stored: StoredConfiguration) throws {
-        let globalsChanged = storedConfiguration.configuration.globalButtons != stored.configuration.globalButtons
+        let previous = storedConfiguration.configuration
+        let globalsChanged = previous.globalButtons != stored.configuration.globalButtons
+            || previous.voiceButtons != stored.configuration.voiceButtons
         try SettingsStorage.write(stored, SettingsKeys.configuration, defaults: defaults)
         storedConfiguration = stored
         clearNotice(for: .configurationSave)

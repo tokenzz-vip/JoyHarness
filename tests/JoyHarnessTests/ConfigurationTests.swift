@@ -88,6 +88,22 @@ struct ConfigurationTests {
         #expect(events[3].getIntegerValueField(.mouseEventDeltaY) == -5)
     }
 
+    @Test func voiceChordPreservesACommandKeyHeldByAnotherMapping() {
+        var events: [CGEvent] = []
+        let sender = SystemEventSender(postEvent: { events.append($0) })
+        let left = VoiceShortcutKey.leftCommand
+        let right = VoiceShortcutKey.rightCommand
+        let voice = ButtonMapping(action: .voiceShortcut, voiceShortcut: .init(mode: .tap, keys: [left, right]))
+        let ordinary = ButtonMapping(action: .leftCommand)
+        sender.send(ordinary, pressed: true)
+        sender.send(voice, pressed: true)
+        sender.send(voice, pressed: false)
+        sender.send(ordinary, pressed: false)
+        #expect(events.map { $0.getIntegerValueField(.keyboardEventKeycode) } ==
+                [left, right, right, left].map { Int64($0.keyCode) })
+        #expect(events.map(\.flags) == [left.flags, left.flags.union(right.flags), left.flags, []])
+    }
+
     @Test func mouseButtonsReportOneClickOnBothEdges() {
         for (action, down, up) in [
             (RemoteAction.mouseLeft, CGEventType.leftMouseDown, CGEventType.leftMouseUp),

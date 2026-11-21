@@ -208,6 +208,20 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             guard let editorView = window.attachedSheet?.contentView else { throw RenderFailure.sheet }
             try render(editorView, to: directory.appendingPathComponent("mapping-editor.png"))
         }
+        if arguments.contains("--voice-editor-preview"), let input = model.voiceInput {
+            let editor = NSHostingView(rootView: VoiceButtonEditor(model: model, input: input)
+                .environment(\.colorScheme, dark ? .dark : .light))
+            editor.appearance = window.appearance
+            editor.frame.size = editor.fittingSize
+            try render(editor, to: directory.appendingPathComponent("voice-editor.png"))
+            let shortcut = model.voiceButton.shortcut
+            let picker = NSHostingView(rootView: VoiceShortcutSelectionPanel(mode: shortcut.mode, selection: shortcut.keys) { _ in }
+                .environment(\.colorScheme, dark ? .dark : .light)
+                .tint(.blue))
+            picker.appearance = window.appearance
+            picker.frame.size = picker.fittingSize
+            try render(picker, to: directory.appendingPathComponent("voice-shortcut-picker.png"))
+        }
         window.orderOut(nil)
     }
     private func render(_ view: NSView, to url: URL) throws {
