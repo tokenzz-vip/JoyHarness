@@ -67,7 +67,7 @@ enum StandardShortcutKeyboard {
         [.init(kVK_ANSI_Keypad0, "0", width: 75), .init(kVK_ANSI_KeypadDecimal, ".")]
     ]
 
-    static let functionKeys = Set((Array(main[0].dropFirst()) + navigation.joined() + extended[0]).map(\.id))
+    static let functionKeys = Set((Array(main[0].dropFirst()) + Array(navigation.joined()) + extended[0]).map(\.id))
 
     static let modifiers: [(title: String, name: String, flags: CGEventFlags)] = [
         ("⌃ Control", "Control", .maskControl),
