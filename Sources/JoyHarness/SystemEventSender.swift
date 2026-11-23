@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import CoreGraphics
 import Foundation
 
@@ -20,6 +21,14 @@ enum VirtualKey {
     static let v: CGKeyCode = 0x09
     static let leftBracket: CGKeyCode = 0x21
     static let rightBracket: CGKeyCode = 0x1E
+
+    static let fnNavigation: [CGKeyCode: CGKeyCode] = [
+        delete: CGKeyCode(kVK_ForwardDelete),
+        upArrow: CGKeyCode(kVK_PageUp),
+        downArrow: CGKeyCode(kVK_PageDown),
+        leftArrow: CGKeyCode(kVK_Home),
+        rightArrow: CGKeyCode(kVK_End)
+    ]
 }
 
 /// NX_KEYTYPE_* codes for system-defined media key events.
@@ -33,10 +42,12 @@ private enum MediaKey {
 /// Every synthesized event goes through `postEvent`, so tests can observe all
 /// output without posting into the real session.
 final class SystemEventSender {
+    static let keyboardEventMarker: Int64 = 0x4A6F_7948_6172_6E73
     // Posting at cghidEventTap does not change a nil source's state table.
     // Keep Fn in the HID table, as on the physical Fn/Globe keyboard path.
     private let functionKeySource = CGEventSource(stateID: .hidSystemState)
     private var heldModifiers: [VoiceShortcutKey: Int] = [:]
+    private var heldKeys: [CGKeyCode: Int] = [:]
     private var leftMouseHeld = false
     private var rightMouseHeld = false
     private let cursorLocation: () -> CGPoint
@@ -58,13 +69,13 @@ final class SystemEventSender {
 
     func send(_ mapping: ButtonMapping, pressed: Bool) {
         switch mapping.action {
-        case .enter: key(VirtualKey.returnKey, pressed: pressed)
-        case .backspace: key(VirtualKey.delete, pressed: pressed)
-        case .escape: key(VirtualKey.escape, pressed: pressed)
-        case .arrowUp: key(VirtualKey.upArrow, pressed: pressed)
-        case .arrowDown: key(VirtualKey.downArrow, pressed: pressed)
-        case .arrowLeft: key(VirtualKey.leftArrow, pressed: pressed)
-        case .arrowRight: key(VirtualKey.rightArrow, pressed: pressed)
+        case .enter: holdKey(VirtualKey.returnKey, pressed: pressed)
+        case .backspace: holdKey(VirtualKey.delete, pressed: pressed)
+        case .escape: holdKey(VirtualKey.escape, pressed: pressed)
+        case .arrowUp: holdKey(VirtualKey.upArrow, pressed: pressed)
+        case .arrowDown: holdKey(VirtualKey.downArrow, pressed: pressed)
+        case .arrowLeft: holdKey(VirtualKey.leftArrow, pressed: pressed)
+        case .arrowRight: holdKey(VirtualKey.rightArrow, pressed: pressed)
         case .rightCommand: modifier(.rightCommand, pressed: pressed)
         case .leftCommand: modifier(.leftCommand, pressed: pressed)
         case .fn: modifier(.function, pressed: pressed)
@@ -75,10 +86,10 @@ final class SystemEventSender {
                 let keys = shortcut.orderedKeys
                 for key in pressed ? keys : Array(keys.reversed()) { modifier(key, pressed: pressed) }
             }
-        case .copy: key(VirtualKey.c, flags: pressed ? .maskCommand : [], pressed: pressed)
-        case .paste: key(VirtualKey.v, flags: pressed ? .maskCommand : [], pressed: pressed)
-        case .browserBack: key(VirtualKey.leftBracket, flags: pressed ? .maskCommand : [], pressed: pressed)
-        case .browserForward: key(VirtualKey.rightBracket, flags: pressed ? .maskCommand : [], pressed: pressed)
+        case .copy: holdKey(VirtualKey.c, flags: .maskCommand, pressed: pressed)
+        case .paste: holdKey(VirtualKey.v, flags: .maskCommand, pressed: pressed)
+        case .browserBack: holdKey(VirtualKey.leftBracket, flags: .maskCommand, pressed: pressed)
+        case .browserForward: holdKey(VirtualKey.rightBracket, flags: .maskCommand, pressed: pressed)
         case .mouseLeft: mouse(.left, pressed: pressed)
         case .mouseRight: mouse(.right, pressed: pressed)
         case .pointerUp: move(0, -12, pressed: pressed)
@@ -112,6 +123,7 @@ final class SystemEventSender {
             for down in [true, false] {
                 guard let event = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: down) else { continue }
                 event.keyboardSetUnicodeString(stringLength: chunk.count, unicodeString: chunk)
+                event.setIntegerValueField(.eventSourceUserData, value: Self.keyboardEventMarker)
                 postEvent(event)
             }
         }
@@ -125,9 +137,23 @@ final class SystemEventSender {
     }
 
     private func key(_ code: CGKeyCode, flags: CGEventFlags = [], pressed: Bool, source: CGEventSource? = nil) {
-        let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: pressed)
-        event?.flags = flags
-        if let event { postEvent(event) }
+        guard let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: pressed) else { return }
+        event.flags = flags
+        event.setIntegerValueField(.eventSourceUserData, value: Self.keyboardEventMarker)
+        postEvent(event)
+    }
+
+    private func holdKey(_ code: CGKeyCode, flags: CGEventFlags = [], pressed: Bool) {
+        let count = heldKeys[code, default: 0]
+        if pressed {
+            heldKeys[code] = count + 1
+            key(code, flags: flags, pressed: true)
+        } else if count > 1 {
+            heldKeys[code] = count - 1
+        } else {
+            heldKeys.removeValue(forKey: code)
+            key(code, pressed: false)
+        }
     }
 
     private func modifier(_ modifier: VoiceShortcutKey, pressed: Bool) {
@@ -144,8 +170,12 @@ final class SystemEventSender {
             heldModifiers[modifier] = count > 1 ? count - 1 : nil
             guard count == 1 else { return }
         }
-        let flags = heldModifiers.keys.reduce(CGEventFlags()) { $0.union($1.flags) }
-        key(modifier.keyCode, flags: flags, pressed: pressed, source: modifier == .function ? functionKeySource : nil)
+        key(modifier.keyCode, flags: heldModifierFlags, pressed: pressed,
+            source: modifier == .function ? functionKeySource : nil)
+    }
+
+    private var heldModifierFlags: CGEventFlags {
+        heldModifiers.keys.reduce(CGEventFlags()) { $0.union($1.flags) }
     }
 
     func pointer(from current: CGPoint, to point: CGPoint) {
@@ -196,8 +226,19 @@ final class SystemEventSender {
     }
 
     private func shortcutEvent(_ shortcut: RecordedShortcut) {
-        let flags = CGEventFlags(rawValue: shortcut.modifiers)
-        key(CGKeyCode(shortcut.keyCode), flags: flags, pressed: true)
-        key(CGKeyCode(shortcut.keyCode), flags: [], pressed: false)
+        var flags = CGEventFlags(rawValue: shortcut.modifiers)
+        let modifier = ShortcutRecordingSession.modifierKeys.first { $0.code == shortcut.keyCode }
+        if let modifier {
+            guard !heldModifiers.keys.contains(where: { $0.keyCode == modifier.code }) else { return }
+            flags.formUnion(modifier.flag.union(modifier.side).union(heldModifierFlags))
+        }
+        let usesFn = flags.contains(.maskSecondaryFn)
+        if usesFn && functionKeySource == nil { return }
+        let code = usesFn ? VirtualKey.fnNavigation[shortcut.keyCode] ?? shortcut.keyCode : shortcut.keyCode
+        let source = usesFn ? functionKeySource : nil
+        key(code, flags: flags, pressed: true, source: source)
+        if heldKeys[code] == nil {
+            key(code, flags: heldModifierFlags, pressed: false, source: source)
+        }
     }
 }

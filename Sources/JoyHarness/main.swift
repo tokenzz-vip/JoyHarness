@@ -227,7 +227,29 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
             picker.frame.size = picker.fittingSize
             try render(picker, to: directory.appendingPathComponent("voice-shortcut-picker.png"))
         }
+        if arguments.contains("--shortcut-preview") {
+            try renderShortcutEditors(model: model, parent: window, directory: directory, dark: dark)
+        }
         window.orderOut(nil)
+    }
+    private func renderShortcutEditors(model: DashboardModel, parent: NSWindow, directory: URL, dark: Bool) throws {
+        guard let input = model.controllerInputs.first(where: { $0 != model.voiceInput }) else { return }
+        let shortcut = RecordedShortcut(keyCode: VirtualKey.c, flags: .maskCommand, keyLabel: "C")
+        model.saveMappings([.single: .init(action: .recordedShortcut, shortcut: shortcut)], input: input)
+        for showingKeyboard in [false, true] {
+            let view = NSHostingView(rootView: MappingEditor(model: model, input: input, gesture: .single,
+                                                             showsKeyboardInPreview: showingKeyboard)
+                .environment(\.colorScheme, dark ? .dark : .light).tint(.blue))
+            let sheet = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)
+            sheet.isReleasedWhenClosed = false
+            sheet.appearance = parent.appearance
+            sheet.contentView = view
+            parent.beginSheet(sheet)
+            defer { parent.endSheet(sheet) }
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.35))
+            let name = showingKeyboard ? "shortcut-keyboard.png" : "shortcut-editor.png"
+            try render(view, to: directory.appendingPathComponent(name))
+        }
     }
     private func render(_ view: NSView, to url: URL) throws {
         view.layoutSubtreeIfNeeded()

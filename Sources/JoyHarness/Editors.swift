@@ -94,8 +94,11 @@ struct MappingEditor: View {
     let input: ControllerInput
     @State var gesture: Gesture
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.appearsActive) private var appearsActive
     @State private var scope: Scope
     @State private var actions: [Gesture: ButtonMapping]
+    @State private var keyboardShortcut: Binding<RecordedShortcut?>?
+    @State private var showsKeyboardInPreview: Bool
 
     private struct Scope {
         let controllerID: String
@@ -105,7 +108,7 @@ struct MappingEditor: View {
         let original: [Gesture: ButtonMapping]
     }
 
-    init(model: DashboardModel, input: ControllerInput, gesture: Gesture) {
+    init(model: DashboardModel, input: ControllerInput, gesture: Gesture, showsKeyboardInPreview: Bool = false) {
         self.model = model; self.input = input; _gesture = State(initialValue: gesture)
         let global = model.globalButton(for: input)
         let label = global == nil ? "按键方案：\(model.selectedProfile.name)" : "全局按键 · 保存的动作对所有方案生效"
@@ -117,6 +120,7 @@ struct MappingEditor: View {
         var draft = saved
         if let id = model.macroBindingRequest { draft[gesture] = .init(action: .macro, macroID: id) }
         _actions = State(initialValue: draft)
+        _showsKeyboardInPreview = State(initialValue: showsKeyboardInPreview)
     }
     private var draft: Binding<ButtonMapping> {
         let trigger = gesture
@@ -128,6 +132,31 @@ struct MappingEditor: View {
             && (scope.globalButtonID != nil || scope.profileID == model.selectedProfileID)
     }
     var body: some View {
+        VStack(spacing: 0) {
+            if let binding = keyboardShortcut {
+                ShortcutKeyboardPicker(shortcut: binding.wrappedValue, onCancel: { keyboardShortcut = nil }) { selection in
+                    binding.wrappedValue = selection
+                    keyboardShortcut = nil
+                }
+                .onExitCommand { keyboardShortcut = nil }
+            } else {
+                mappingForm
+            }
+        }
+        .onChange(of: appearsActive) { _, active in
+            if !active { keyboardShortcut = nil }
+        }
+        .onAppear {
+            model.beginEditing()
+            if showsKeyboardInPreview {
+                keyboardShortcut = draft.shortcut
+                showsKeyboardInPreview = false
+            }
+        }
+        .onDisappear { model.endEditing() }
+    }
+
+    private var mappingForm: some View {
         VStack(spacing: 0) {
             HStack(spacing: SettingsStyle.Spacing.controls) {
                 Image(systemName: input.symbol)
@@ -151,7 +180,8 @@ struct MappingEditor: View {
                         Picker("触发方式", selection: $gesture) { ForEach(Gesture.allCases) { Text($0.label).tag($0) } }
                             .labelsHidden().pickerStyle(.segmented)
                     }
-                    ActionFields(mapping: draft, model: model, recordingContext: gesture)
+                    ActionFields(mapping: draft, model: model, keyboardShortcut: $keyboardShortcut)
+                        .id(gesture)
                     if input.isStickDirection {
                         Text("方向动作仅在「方向映射」模式生效。")
                             .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
@@ -181,8 +211,6 @@ struct MappingEditor: View {
         }
         .frame(width: 560, height: 420)
         .background(Color(nsColor: .controlBackgroundColor))
-        .onAppear { model.beginEditing() }
-        .onDisappear { model.endEditing() }
     }
 }
 
@@ -201,14 +229,13 @@ extension ButtonMapping {
 struct ActionFields: View {
     @Binding var mapping: ButtonMapping
     @ObservedObject var model: DashboardModel
-    @State private var capturingShortcut = false
+    @Binding var keyboardShortcut: Binding<RecordedShortcut?>?
     @State private var selectedMacroTagIDs: Set<String> = []
-    var recordingContext: Gesture = .single
     var allowMacro = true
 
     private var availableActions: [RemoteAction] {
         RemoteAction.allCases.filter { action in
-            guard action != .voiceShortcut else { return false }
+            guard action != .voiceShortcut, !action.isLegacyPointerAction else { return false }
             let legacyModeAction = [.cycleLeftStickMode, .cycleRightStickMode].contains(action)
             let unavailable = [.macro, .toggleMode, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode].contains(action)
             return (!legacyModeAction || mapping.action == action) && (allowMacro || !unavailable)
@@ -220,7 +247,8 @@ struct ActionFields: View {
             MappingEditorField("执行动作") {
                 SettingsSingleSelectionPicker(selection: Binding(get: { mapping.action }, set: { mapping.action = $0 }),
                     options: availableActions.map { SettingsSelectionOption(value: $0, title: $0.label) },
-                    accessibilityLabel: "执行动作", identifier: "mapping-action-picker")
+                    accessibilityLabel: "执行动作", identifier: "mapping-action-picker",
+                    missingSelectionTitle: mapping.action.label)
             }
             switch mapping.action {
             case .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode:
@@ -230,9 +258,7 @@ struct ActionFields: View {
                 Text("打开常用语浮层后，用方向键或拨动摇杆选择四个方向，按 A 或按下摇杆选择中央。单击输入内容 1，双击输入内容 2。")
                     .font(SettingsStyle.Typography.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             case .recordedShortcut:
-                ShortcutBindingEditor(shortcut: $mapping.shortcut, capturing: $capturingShortcut)
-                    .id(recordingContext)
-                    .onDisappear { capturingShortcut = false }
+                ShortcutBindingEditor(shortcut: $mapping.shortcut, keyboardShortcut: $keyboardShortcut)
             case .openApplication:
                 HStack {
                     Text(mapping.applicationPath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "尚未选择应用").font(.system(size: 12))

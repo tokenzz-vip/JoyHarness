@@ -9,6 +9,7 @@ struct MacrosPage: View {
     @State private var selectedTagIDs: Set<String> = []
     @State private var showsTagManager = false
     @State private var deleting = false
+    @State private var keyboardShortcut: Binding<RecordedShortcut?>?
 
     private var visibleMacros: [ActionMacro] {
         guard !selectedTagIDs.isEmpty else { return model.savedMacros }
@@ -39,6 +40,9 @@ struct MacrosPage: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
+        .modifier(ShortcutKeyboardOverlay(shortcut: $keyboardShortcut) { active in
+            if active { model.beginEditing() } else { model.endEditing() }
+        })
         .confirmationDialog("删除组合动作？", isPresented: $deleting, titleVisibility: .visible) {
             Button("删除组合动作", role: .destructive) {
                 if let selectedMacroID { model.deleteMacro(selectedMacroID) }
@@ -201,7 +205,8 @@ struct MacrosPage: View {
                                     Spacer()
                                     Button { steps.wrappedValue.removeAll { $0.id == step.id } } label: { Image(systemName: "minus.circle") }.buttonStyle(.plain).help("移除步骤")
                                 }
-                                MacroActionEditor(value: $step.mapping, model: model, parentMacroID: macro.id)
+                                MacroActionEditor(value: $step.mapping, model: model, parentMacroID: macro.id,
+                                                  keyboardShortcut: $keyboardShortcut)
                                 HStack {
                                     Text("执行后等待").font(.caption).foregroundStyle(.secondary)
                                     Slider(value: $step.delay, in: 0...3, step: 0.1)

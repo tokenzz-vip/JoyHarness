@@ -65,7 +65,8 @@ final class DashboardModel: ObservableObject {
     @Published var frontmostApp = ""
     @Published var accessibility = false
     @Published var inputMonitoring = false
-    @Published var recordingShortcut = false
+    @Published private(set) var recordingShortcut = false
+    private var editingCount = 0
     /// Publishes stick-mode changes separately from the dashboard notice.
     /// Views that show the current mode and the menu-bar coordinator both depend
     /// on this state changing immediately after a mode cycle.
@@ -377,12 +378,17 @@ final class DashboardModel: ObservableObject {
     }
     func rescan() { guard !preview else { return }; suspend(); transports.forEach { $0.start() } }
     func beginEditing() {
+        editingCount += 1
+        guard editingCount == 1 else { return }
         phrasePicker?.model.dismiss()
         if let id = controllerSelection.deviceID { engine.disconnect(id) }
         macros.cancel()
         recordingShortcut = true
     }
     func endEditing() {
+        guard editingCount > 0 else { return }
+        editingCount -= 1
+        guard editingCount == 0 else { return }
         if let id = controllerSelection.deviceID { engine.disconnect(id) }
         recordingShortcut = false
     }

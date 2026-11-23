@@ -22,21 +22,25 @@ struct MacroActionEditor: View {
     @ObservedObject var model: DashboardModel
     let parentMacroID: UUID
     @State private var draft: ButtonMapping
-    @State private var capturing = false
+    @Binding var keyboardShortcut: Binding<RecordedShortcut?>?
     @State private var selectedMacroTagIDs: Set<String> = []
 
-    init(value: Binding<ButtonMapping>, model: DashboardModel, parentMacroID: UUID) {
+    init(value: Binding<ButtonMapping>, model: DashboardModel, parentMacroID: UUID,
+         keyboardShortcut: Binding<Binding<RecordedShortcut?>?>) {
         _value = value; self.model = model; self.parentMacroID = parentMacroID
+        _keyboardShortcut = keyboardShortcut
         _draft = State(initialValue: value.wrappedValue)
     }
 
     private var actions: [RemoteAction] {
         let basic: [RemoteAction] = [.enter, .backspace, .escape, .arrowUp, .arrowDown, .arrowLeft, .arrowRight, .copy, .paste, .browserBack, .browserForward]
         let system: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause] + RemoteAction.harnessFocusActions + [
-            .mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight, .scrollUp, .scrollDown]
+            .scrollUp, .scrollDown]
         let custom: [RemoteAction] = [.recordedShortcut, .openApplication, .phrase, .macro]
         var ordered: [RemoteAction] = [.disabled] + custom + basic + system
-        if draft.action.canRunInMacro, !ordered.contains(draft.action) { ordered.append(draft.action) }
+        if draft.action.canRunInMacro, !draft.action.isLegacyPointerAction, !ordered.contains(draft.action) {
+            ordered.append(draft.action)
+        }
         return ordered
     }
 
@@ -45,19 +49,13 @@ struct MacroActionEditor: View {
             MappingEditorField("执行动作") {
                 SettingsSingleSelectionPicker(selection: Binding(get: { draft.action }, set: { draft = .init(action: $0) }),
                     options: actions.map { SettingsSelectionOption(value: $0, title: actionTitle($0)) },
-                    accessibilityLabel: "执行动作", identifier: "mapping-action-picker")
+                    accessibilityLabel: "执行动作", identifier: "mapping-action-picker",
+                    missingSelectionTitle: actionTitle(draft.action))
             }
             if draft.action == .recordedShortcut {
-                ShortcutBindingEditor(shortcut: $draft.shortcut, capturing: $capturing)
-                    .onChange(of: capturing) { _, active in
-                        if active { model.beginEditing() } else { model.endEditing() }
-                    }
-                    .onDisappear {
-                        if capturing {
-                            capturing = false
-                            model.endEditing()
-                        }
-                    }
+                ShortcutBindingEditor(shortcut: $draft.shortcut, keyboardShortcut: $keyboardShortcut) { active in
+                    if active { model.beginEditing() } else { model.endEditing() }
+                }
             }
             if draft.action == .openApplication {
                 HStack {
@@ -102,7 +100,7 @@ struct MacroActionEditor: View {
 
     private func actionTitle(_ action: RemoteAction) -> String {
         switch action {
-        case .recordedShortcut: "录制的快捷键"
+        case .recordedShortcut: "自定义快捷键"
         case .phrase: "输入常用语"
         default: action.label
         }

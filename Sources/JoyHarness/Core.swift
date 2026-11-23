@@ -119,6 +119,13 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable {
 
     static let harnessFocusActions: [Self] = [.focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode]
 
+    var isLegacyPointerAction: Bool {
+        switch self {
+        case .mouseLeft, .mouseRight, .pointerUp, .pointerDown, .pointerLeft, .pointerRight: true
+        default: false
+        }
+    }
+
     var canRunInMacro: Bool {
         switch self {
         case .toggleMode, .openPhrases, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode, .voiceShortcut: false

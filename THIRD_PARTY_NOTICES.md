@@ -1,6 +1,6 @@
 # RcHarness
 
-SystemEventSender、SettingsStorage、SingleInstanceLock、HarnessIcon 及界面布局（侧栏、页头、按键卡片、面板样式）基于同级 RcHarness 的实现并作适配。品牌标志的对话气泡、指令符号和整体构图参考 RcHarness 第二版 SVG，双 Joy-Con 图形与蓝红配色由本项目绘制。
+SystemEventSender、SettingsStorage、SingleInstanceLock、HarnessIcon、快捷键录制和键盘选键，以及界面布局（侧栏、页头、按键卡片、面板样式）基于同级 RcHarness 的实现并作适配。品牌标志的对话气泡、指令符号和整体构图参考 RcHarness 第二版 SVG，双 Joy-Con 图形与蓝红配色由本项目绘制。
 
 # Sparkle
 
