@@ -118,6 +118,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
                 for _ in 0..<(day + 1) * 3 { model.statistics.record(.a, date: date) }
                 for _ in 0..<(day + 1) { model.statistics.record(.c, date: date) }
             }
+            for (index, input) in ControllerInput.allCases.enumerated() {
+                for _ in 0..<(ControllerInput.allCases.count - index) {
+                    model.statistics.record(input)
+                }
+            }
         }
         let macroTagPreview = arguments.contains("--macro-tag-preview")
         if macroTagPreview {
