@@ -89,10 +89,45 @@ struct HarnessesPage: View {
     }
 }
 
+enum MappingActionFilter: String, CaseIterable, Identifiable {
+    case all = "全部"
+    case basic = "基本按键"
+    case system = "系统与媒体"
+    case custom = "自定义"
+
+    var id: Self { self }
+
+    private static let basicActions: [RemoteAction] = [
+        .enter, .backspace, .escape, .arrowUp, .arrowDown, .arrowLeft, .arrowRight,
+        .copy, .paste, .browserBack, .browserForward,
+        .leftCommand, .rightCommand, .leftOption, .rightOption, .fn
+    ]
+    private static let systemActions: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause]
+        + RemoteAction.harnessFocusActions + [.scrollUp, .scrollDown, .toggleMode, .cycleStickMode]
+    private static let customActions: [RemoteAction] = [.recordedShortcut, .openApplication, .phrase, .openPhrases, .macro]
+    private static let allActions = customActions + basicActions + systemActions
+
+    func options(selecting current: RemoteAction) -> [RemoteAction] {
+        let category: [RemoteAction]
+        switch self {
+        case .all: category = Self.allActions
+        case .basic: category = Self.basicActions
+        case .system: category = Self.systemActions
+        case .custom: category = Self.customActions
+        }
+        var options: [RemoteAction] = [.disabled] + Self.allActions.filter { $0 == current || category.contains($0) }
+        if current == .cycleLeftStickMode || current == .cycleRightStickMode {
+            options.append(current)
+        }
+        return options
+    }
+}
+
 struct MappingEditor: View {
     @ObservedObject var model: DashboardModel
     let input: ControllerInput
     @State var gesture: Gesture
+    @Binding var actionFilter: MappingActionFilter
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appearsActive) private var appearsActive
     @State private var scope: Scope
@@ -108,8 +143,10 @@ struct MappingEditor: View {
         let original: [Gesture: ButtonMapping]
     }
 
-    init(model: DashboardModel, input: ControllerInput, gesture: Gesture, showsKeyboardInPreview: Bool = false) {
+    init(model: DashboardModel, input: ControllerInput, gesture: Gesture,
+         actionFilter: Binding<MappingActionFilter>, showsKeyboardInPreview: Bool = false) {
         self.model = model; self.input = input; _gesture = State(initialValue: gesture)
+        _actionFilter = actionFilter
         let global = model.globalButton(for: input)
         let label = global == nil ? "按键方案：\(model.selectedProfile.name)" : "全局按键 · 保存的动作对所有方案生效"
         let saved = Dictionary(uniqueKeysWithValues: Gesture.allCases.map {
@@ -175,12 +212,17 @@ struct MappingEditor: View {
             Divider()
             ScrollView {
                 VStack(alignment: .leading, spacing: SettingsStyle.Spacing.groups) {
-                    HStack(spacing: SettingsStyle.Spacing.inline) {
-                        Text("触发方式").font(SettingsStyle.Typography.body).accessibilityHidden(true)
+                    MappingEditorField("触发方式") {
                         Picker("触发方式", selection: $gesture) { ForEach(Gesture.allCases) { Text($0.label).tag($0) } }
-                            .labelsHidden().pickerStyle(.segmented)
+                            .pickerStyle(.segmented)
                     }
-                    ActionFields(mapping: draft, model: model, keyboardShortcut: $keyboardShortcut)
+                    MappingEditorField("动作分类") {
+                        Picker("动作分类", selection: $actionFilter) {
+                            ForEach(MappingActionFilter.allCases) { Text($0.rawValue).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    ActionFields(mapping: draft, model: model, keyboardShortcut: $keyboardShortcut, filter: actionFilter)
                         .id(gesture)
                     if input.isStickDirection {
                         Text("方向动作仅在「方向映射」模式生效。")
@@ -230,23 +272,14 @@ struct ActionFields: View {
     @Binding var mapping: ButtonMapping
     @ObservedObject var model: DashboardModel
     @Binding var keyboardShortcut: Binding<RecordedShortcut?>?
+    let filter: MappingActionFilter
     @State private var selectedMacroTagIDs: Set<String> = []
-    var allowMacro = true
-
-    private var availableActions: [RemoteAction] {
-        RemoteAction.allCases.filter { action in
-            guard action != .voiceShortcut, !action.isLegacyPointerAction else { return false }
-            let legacyModeAction = [.cycleLeftStickMode, .cycleRightStickMode].contains(action)
-            let unavailable = [.macro, .toggleMode, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode].contains(action)
-            return (!legacyModeAction || mapping.action == action) && (allowMacro || !unavailable)
-        }
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             MappingEditorField("执行动作") {
                 SettingsSingleSelectionPicker(selection: Binding(get: { mapping.action }, set: { mapping.action = $0 }),
-                    options: availableActions.map { SettingsSelectionOption(value: $0, title: $0.label) },
+                    options: filter.options(selecting: mapping.action).map { SettingsSelectionOption(value: $0, title: $0.label) },
                     accessibilityLabel: "执行动作", identifier: "mapping-action-picker",
                     missingSelectionTitle: mapping.action.label)
             }

@@ -238,6 +238,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         model.saveMappings([.single: .init(action: .recordedShortcut, shortcut: shortcut)], input: input)
         for showingKeyboard in [false, true] {
             let view = NSHostingView(rootView: MappingEditor(model: model, input: input, gesture: .single,
+                                                             actionFilter: .constant(.all),
                                                              showsKeyboardInPreview: showingKeyboard)
                 .environment(\.colorScheme, dark ? .dark : .light).tint(.blue))
             let sheet = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)

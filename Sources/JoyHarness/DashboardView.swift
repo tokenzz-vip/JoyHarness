@@ -18,6 +18,7 @@ struct DashboardView: View {
     @State private var feedbackVisible = false
     @State private var editing: ControllerInput?
     @State private var gesture = Gesture.single
+    @State private var actionFilter = MappingActionFilter.all
     @State private var profileName = ""
     @State private var profileNaming: ProfileNaming?
 
@@ -77,7 +78,7 @@ struct DashboardView: View {
             if model.voiceInput == input {
                 VoiceButtonEditor(model: model, input: input)
             } else {
-                MappingEditor(model: model, input: input, gesture: gesture)
+                MappingEditor(model: model, input: input, gesture: gesture, actionFilter: $actionFilter)
             }
         }
         .sheet(item: $profileNaming) { request in
@@ -101,6 +102,7 @@ struct DashboardView: View {
         }
         .onChange(of: model.macroBindingRequest) { _, id in
             if id != nil {
+                actionFilter = .custom
                 gesture = .single
                 let preferred: ControllerInput = model.controllerProfile.side == .left ? .up : .a
                 editing = model.voiceInput == preferred
