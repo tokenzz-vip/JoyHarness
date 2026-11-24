@@ -59,7 +59,8 @@ final class DashboardModel: ObservableObject {
     @Published var snapshots: [String: JoyConSnapshot] = [:]
     @Published var enabled = true
     @Published private(set) var notices: [DashboardNotice] = []
-    private var noticeTimer: Task<Void, Never>?
+    private let scheduleNoticeDismissal: CommandQueue.Scheduler
+    private var noticeTimer: DispatchWorkItem?
     @Published var hidStatus = "一代：尚未启动"
     @Published var bleStatus = "二代：尚未启动"
     @Published var frontmostApp = ""
@@ -117,9 +118,11 @@ final class DashboardModel: ObservableObject {
 
     init(defaults: UserDefaults = .standard, preview: Bool = false,
          transports: [ControllerTransport]? = nil, inputEngine: InputEngine? = nil,
-         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+         now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         scheduleNoticeDismissal: @escaping CommandQueue.Scheduler = CommandQueue.mainQueue) {
         self.defaults = defaults; self.preview = preview
         self.now = now
+        self.scheduleNoticeDismissal = scheduleNoticeDismissal
         themeMode = AppThemeMode(rawValue: defaults.string(forKey: "JoyHarness.theme") ?? "") ?? .system
         openAtLaunch = defaults.object(forKey: "JoyHarness.openAtLaunch") as? Bool ?? true
         showDockIcon = defaults.object(forKey: "JoyHarness.showDockIcon") as? Bool ?? true
@@ -773,11 +776,8 @@ final class DashboardModel: ObservableObject {
         let notice = DashboardNotice(level: level, detail: detail, issue: issue, resolvedWhen: resolvedWhen)
         notices = notices.filter { $0.issue != issue } + [notice]
         guard let duration = level.autoDismissAfter else { return }
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: duration)
         noticeTimer?.cancel()
-        noticeTimer = Task { [weak self, id = notice.id] in
-            do { try await clock.sleep(until: deadline) } catch { return }
+        noticeTimer = scheduleNoticeDismissal(duration) { [weak self, id = notice.id] in
             self?.dismissNotice(id)
         }
     }

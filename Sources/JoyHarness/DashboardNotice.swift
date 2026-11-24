@@ -13,10 +13,10 @@ struct DashboardNotice: Identifiable {
             }
         }
 
-        var autoDismissAfter: Duration? {
+        var autoDismissAfter: TimeInterval? {
             switch self {
-            case .success: .seconds(3)
-            case .information: .seconds(5)
+            case .success: 3
+            case .information: 5
             case .warning, .error: nil
             }
         }

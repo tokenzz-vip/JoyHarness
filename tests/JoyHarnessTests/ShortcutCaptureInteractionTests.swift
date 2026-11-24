@@ -10,7 +10,7 @@ final class ShortcutCaptureInteractionTests: XCTestCase {
         override var isKeyWindow: Bool { true }
     }
 
-    func testLocalDispatchCapturesEscapeAndReturnBeforeWindowRouting() throws {
+    func testLocalDispatchCapturesEscapeAndReturnBeforeWindowRouting() async throws {
         _ = NSApplication.shared
         // The test dispatches events inside AppKit without activating the test runner.
         let getter = try XCTUnwrap(class_getInstanceMethod(NSApplication.self, #selector(getter: NSApplication.isActive)))
@@ -30,7 +30,10 @@ final class ShortcutCaptureInteractionTests: XCTestCase {
             let field = ShortcutCapture.CaptureField(session: session)
             window.contentView = field
             defer { window.close() }
-            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.05))
+            // The field schedules focus on the main queue when it joins the window.
+            await withCheckedContinuation { continuation in
+                DispatchQueue.main.async { continuation.resume() }
+            }
             XCTAssertTrue(session.isRecording)
             XCTAssertTrue(window.firstResponder === field)
             var result: RecordedShortcut?
