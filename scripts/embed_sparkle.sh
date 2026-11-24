@@ -6,7 +6,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="${1:?app bundle required}"
 IDENTITY="${2:?resolved signing identity required}"
 MODE="${3:?signing mode required}"
-ARCH=arm64
+ARCH="${JOY_HARNESS_ARCH:-$(uname -m)}"
+case "$ARCH" in arm64|x86_64) ;; *) echo "Unsupported architecture: $ARCH; use arm64 or x86_64" >&2; exit 1 ;; esac
 case "$MODE" in local|distribution) ;; *) echo "Unknown signing mode: $MODE" >&2; exit 1 ;; esac
 
 FRAMEWORK="$ROOT/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"

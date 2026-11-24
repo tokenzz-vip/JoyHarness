@@ -4,7 +4,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="${1:-${ROOT}/.build/JoyHarness.app}"
 MODE="${2:-local}"
 CONFIGURATION="${JOY_HARNESS_CONFIGURATION:-release}"
-ARCH=arm64
+ARCH="${JOY_HARNESS_ARCH:-$(uname -m)}"
+case "$ARCH" in arm64|x86_64) ;; *) echo "Unsupported architecture: $ARCH; use arm64 or x86_64" >&2; exit 1 ;; esac
 case "$MODE" in local|distribution) ;; *) echo 'Unknown signing mode' >&2; exit 1 ;; esac
 case "$CONFIGURATION" in debug|release) ;; *) echo 'Unknown configuration' >&2; exit 1 ;; esac
 case "$OUT" in *.app) ;; *) echo 'Output must end in .app' >&2; exit 1 ;; esac
@@ -65,7 +66,7 @@ fi
 if [[ -n "${JOY_HARNESS_FEEDBACK_URL:-}" ]]; then
   /usr/libexec/PlistBuddy -c "Add :JoyHarnessFeedbackURL string ${JOY_HARNESS_FEEDBACK_URL}" "$APP/Contents/Info.plist"
 fi
-bash "$ROOT/scripts/embed_sparkle.sh" "$APP" "$IDENTITY" "$MODE"
+JOY_HARNESS_ARCH="$ARCH" bash "$ROOT/scripts/embed_sparkle.sh" "$APP" "$IDENTITY" "$MODE"
 python3 "$ROOT/scripts/app_architecture.py" verify "$APP" "$ARCH"
 ARGS=(--force --sign "$IDENTITY" --identifier vip.tokenzz.joyharness)
 if [[ "$MODE" == distribution ]]; then ARGS+=(--options runtime --timestamp); fi
@@ -92,4 +93,4 @@ if ! mv "$APP" "$OUT" || ! /usr/bin/codesign --verify --deep --strict "$OUT"; th
   fi
   exit 1
 fi
-echo "Built $OUT"
+echo "Built $OUT ($ARCH)"

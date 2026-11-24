@@ -22,8 +22,18 @@ env:
 
 jobs:
   build:
-    name: Build and notarize (arm64)
-    runs-on: macos-15
+    name: Build and notarize (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: macos-15
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    env:
+      JOY_HARNESS_ARCH: ${{ matrix.arch }}
     timeout-minutes: 75
     defaults:
       run:
@@ -72,7 +82,7 @@ jobs:
 
       - name: Show native toolchain
         run: |
-          test "$(uname -m)" = arm64
+          test "$(uname -m)" = "$JOY_HARNESS_ARCH"
           xcodebuild -version
           swift --version
 
@@ -121,7 +131,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           scripts/build_app.sh "$APP_PATH" distribution
-          test "$(lipo -archs "$APP_PATH/Contents/MacOS/JoyHarness")" = arm64
+          test "$(lipo -archs "$APP_PATH/Contents/MacOS/JoyHarness")" = "$JOY_HARNESS_ARCH"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Contents/Info.plist")" = "$JOY_HARNESS_VERSION"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Contents/Info.plist")" = "$JOY_HARNESS_BUILD"
           signature="$(codesign --display --verbose=4 "$APP_PATH" 2>&1)"
@@ -141,14 +151,14 @@ jobs:
         env:
           JOY_HARNESS_SIGNING_IDENTITY: ${{ steps.signing.outputs.identity }}
         run: |
-          dmg="$DIST_DIR/JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
+          dmg="$DIST_DIR/JoyHarness-$RELEASE_TAG-macos-$JOY_HARNESS_ARCH.dmg"
           scripts/package_dmg.sh "$APP_PATH" "$dmg" "JoyHarness $RELEASE_TAG"
           codesign --force --timestamp --sign "$JOY_HARNESS_SIGNING_IDENTITY" "$dmg"
           codesign --verify --strict "$dmg"
 
       - name: Notarize and staple distribution DMG
         run: |
-          dmg="$DIST_DIR/JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
+          dmg="$DIST_DIR/JoyHarness-$RELEASE_TAG-macos-$JOY_HARNESS_ARCH.dmg"
           response="$RUNNER_TEMP/joyharness-notarization.json"
           if ! xcrun notarytool submit "$dmg" --wait --timeout 45m --output-format json \
             --keychain "$KEYCHAIN_PATH" --keychain-profile joyharness-release > "$response" \
@@ -171,22 +181,22 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: |
           bash scripts/generate_update_feed.sh \
-            "$DIST_DIR" "$RELEASE_TAG" "${{ github.repository }}" arm64
+            "$DIST_DIR" "$RELEASE_TAG" "$GITHUB_REPOSITORY" "$JOY_HARNESS_ARCH"
 
       - name: Verify and prepare release files
         run: |
-          archive="JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
+          archive="JoyHarness-$RELEASE_TAG-macos-$JOY_HARNESS_ARCH.dmg"
           codesign --verify --strict "$DIST_DIR/$archive"
           bash scripts/verify_dmg.sh "$DIST_DIR/$archive"
           spctl --assess --type open --context context:primary-signature --verbose=4 "$DIST_DIR/$archive"
           cd "$DIST_DIR"
-          cp "$archive" JoyHarness-macos-arm64.dmg
-          shasum -a 256 "$archive" JoyHarness-macos-arm64.dmg > SHA256SUMS
+          cp "$archive" JoyHarness-macos-$JOY_HARNESS_ARCH.dmg
+          shasum -a 256 "$archive" JoyHarness-macos-$JOY_HARNESS_ARCH.dmg > "SHA256SUMS-$JOY_HARNESS_ARCH"
 
       - name: Upload verified release files
         uses: actions/upload-artifact@v7
         with:
-          name: release-arm64
+          name: release-${{ matrix.arch }}
           path: ${{ env.DIST_DIR }}/*
           if-no-files-found: error
           retention-days: 1
@@ -209,28 +219,31 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: release-arm64
+          pattern: release-*
           path: release-assets
+          merge-multiple: true
 
-      - name: Verify downloaded release files
-        working-directory: release-assets
-        run: |
-          archive="JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
-          fixed="JoyHarness-macos-arm64.dmg"
-          test -s "$archive"
-          cmp "$archive" "$fixed"
-          test -s appcast-arm64.xml
-          sha256sum "$archive" "$fixed" | cmp - SHA256SUMS
-
-      - name: Publish GitHub Release
+      - name: Verify and publish both architectures
         working-directory: release-assets
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
         run: |
-          archive="JoyHarness-$RELEASE_TAG-macos-arm64.dmg"
-          fixed="JoyHarness-macos-arm64.dmg"
-          assets=("$archive" "$fixed" appcast-arm64.xml SHA256SUMS)
+          assets=(SHA256SUMS)
+          cat SHA256SUMS-arm64 SHA256SUMS-x86_64 > SHA256SUMS
+          dmgs=()
+          for arch in arm64 x86_64; do
+            archive="JoyHarness-$RELEASE_TAG-macos-$arch.dmg"
+            fixed="JoyHarness-macos-$arch.dmg"
+            feed="appcast-$arch.xml"
+            test -s "$archive"
+            cmp "$archive" "$fixed"
+            test -s "$feed"
+            dmgs+=("$archive" "$fixed")
+            assets+=("$archive" "$fixed" "$feed")
+          done
+          sha256sum "${dmgs[@]}" | cmp - SHA256SUMS
+
           expected="$(printf '%s\n' "${assets[@]}" | jq -R . | jq -s .)"
           existing="$RUNNER_TEMP/joyharness-release.json"
           if gh release view "$RELEASE_TAG" --json isDraft,assets > "$existing" 2>/dev/null; then
