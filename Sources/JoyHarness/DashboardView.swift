@@ -444,7 +444,7 @@ struct DashboardView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("当前版本").foregroundStyle(.secondary)
-                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0")
+                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.0")
                                 .font(.system(size: 14, weight: .semibold)).monospacedDigit()
                         }.font(SettingsStyle.Typography.body)
                         Text("Intel 或 Apple Silicon · macOS 14 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)

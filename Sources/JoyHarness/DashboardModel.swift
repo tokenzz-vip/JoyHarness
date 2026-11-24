@@ -751,7 +751,7 @@ final class DashboardModel: ObservableObject {
     func copyDiagnostics() {
         let devices = devices.map { "\($0.profile.name): \($0.status)" }.joined(separator: "\n")
         let report = """
-        JoyHarness \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0")
+        JoyHarness \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.0")
         \(ProcessInfo.processInfo.operatingSystemVersionString)
         选中手柄：\(controllerTitle)
         映射：\(enabled ? "启用" : "暂停")
