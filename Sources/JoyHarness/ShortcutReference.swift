@@ -61,11 +61,12 @@ private struct ShortcutReferenceView: View {
             HStack(spacing: SettingsStyle.Spacing.controls) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(RemoteAction.toggleShortcutReference.label)
-                        .font(SettingsStyle.Typography.dialogTitle)
+                        .font(SettingsStyle.Typography.pageTitle)
                         .accessibilityAddTraits(.isHeader)
                     Text("\(model.activeProfile.name) · \(model.controllerProfile.name)")
                         .font(SettingsStyle.Typography.body)
                         .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
                 Spacer()
                 if !model.enabled {
@@ -76,7 +77,7 @@ private struct ShortcutReferenceView: View {
                 Button("关闭", action: close)
             }
             .padding(.horizontal, SettingsStyle.panelPadding)
-            .padding(.vertical, SettingsStyle.Spacing.controls)
+            .padding(.vertical, SettingsStyle.Spacing.inline)
             Divider()
             GeometryReader { geometry in
                 let minimum = ShortcutReferenceController.minimumSize
@@ -88,7 +89,7 @@ private struct ShortcutReferenceView: View {
                 }
             }
         }
-        .background(Color(nsColor: .windowBackgroundColor))
+        .background(SettingsStyle.pageBackground)
         .clipShape(.rect(cornerRadius: SettingsStyle.panelRadius))
         .overlay {
             RoundedRectangle(cornerRadius: SettingsStyle.panelRadius)

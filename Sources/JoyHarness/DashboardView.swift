@@ -7,7 +7,6 @@ private enum Style {
     static let accent = Color.blue
     static let left = Color(red: 0.13, green: 0.65, blue: 0.77)
     static let right = Color(red: 0.94, green: 0.37, blue: 0.30)
-    static let background = Color(nsColor: .controlBackgroundColor)
 }
 
 struct DashboardView: View {
@@ -57,7 +56,7 @@ struct DashboardView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Style.background)
+            .background(SettingsStyle.pageBackground)
             .ignoresSafeArea(.container, edges: .top)
         }
         .frame(minWidth: DashboardStyle.minimumWindowSize.width, minHeight: DashboardStyle.minimumWindowSize.height)
@@ -138,7 +137,7 @@ struct DashboardView: View {
             nav(.statistics).padding(.bottom, 10)
         }
         .frame(maxHeight: .infinity)
-        .background(Style.background)
+        .background(SettingsStyle.pageBackground)
     }
     private func nav(_ page: DashboardPage) -> some View {
         Button {

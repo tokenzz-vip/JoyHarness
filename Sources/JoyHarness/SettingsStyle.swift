@@ -31,6 +31,7 @@ enum SettingsStyle {
         static let caption = Font.system(size: 11)
     }
 
+    static let pageBackground = Color(nsColor: .controlBackgroundColor)
     static let subtle = Color.primary.opacity(0.035)
     static func shortcutPopoverBackground(in colorScheme: ColorScheme) -> Color {
         Color(white: colorScheme == .dark ? 0.11 : 0.99)
