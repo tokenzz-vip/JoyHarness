@@ -103,7 +103,7 @@ enum MappingActionFilter: String, CaseIterable, Identifiable {
         .leftCommand, .rightCommand, .leftOption, .rightOption, .fn
     ]
     private static let systemActions: [RemoteAction] = [.volumeUp, .volumeDown, .mute, .playPause]
-        + RemoteAction.harnessFocusActions + [.scrollUp, .scrollDown, .toggleMode, .cycleStickMode]
+        + RemoteAction.harnessFocusActions + [.scrollUp, .scrollDown, .toggleMode, .cycleStickMode, .toggleShortcutReference]
     private static let customActions: [RemoteAction] = [.recordedShortcut, .openApplication, .phrase, .openPhrases, .macro]
     private static let allActions = customActions + basicActions + systemActions
 
@@ -289,6 +289,9 @@ struct ActionFields: View {
                     .font(SettingsStyle.Typography.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             case .openPhrases:
                 Text("打开常用语浮层后，用方向键或拨动摇杆选择四个方向，按 A 或按下摇杆选择中央。单击输入内容 1，双击输入内容 2。")
+                    .font(SettingsStyle.Typography.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            case .toggleShortcutReference:
+                Text("显示当前生效方案的按键配置，再触发一次即可关闭。")
                     .font(SettingsStyle.Typography.body).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             case .recordedShortcut:
                 ShortcutBindingEditor(shortcut: $mapping.shortcut, keyboardShortcut: $keyboardShortcut)

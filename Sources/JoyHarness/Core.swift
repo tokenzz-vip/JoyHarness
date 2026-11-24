@@ -115,7 +115,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable {
     case mouseLeft, mouseRight, pointerUp, pointerDown, pointerLeft, pointerRight, scrollUp, scrollDown
     case volumeUp, volumeDown, mute, playPause, recordedShortcut, openApplication, phrase, openPhrases, macro, disabled
     case focusChatGPT, focusClaude, focusCursor, focusDeepSeek, focusWorkBuddy, focusOpenCode
-    case voiceShortcut
+    case voiceShortcut, toggleShortcutReference
 
     static let harnessFocusActions: [Self] = [.focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode]
 
@@ -128,7 +128,8 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable {
 
     var canRunInMacro: Bool {
         switch self {
-        case .toggleMode, .openPhrases, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode, .voiceShortcut: false
+        case .toggleMode, .openPhrases, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode,
+             .voiceShortcut, .toggleShortcutReference: false
         default: true
         }
     }
@@ -159,6 +160,7 @@ enum RemoteAction: String, CaseIterable, Codable, Identifiable {
         case .scrollUp: "向上滚动"; case .scrollDown: "向下滚动"; case .volumeUp: "音量 +"; case .volumeDown: "音量 −"
         case .mute: "静音"; case .playPause: "播放 / 暂停"; case .recordedShortcut: "自定义快捷键"
         case .voiceShortcut: "语音快捷键"
+        case .toggleShortcutReference: "查看快捷键"
         case .openApplication: "打开应用"; case .phrase: "输入文本"; case .openPhrases: "唤出常用语"; case .macro: "组合动作"; case .disabled: "未设置"
         case .focusChatGPT: "打开聚焦ChatGPT"; case .focusClaude: "打开聚焦Claude"; case .focusCursor: "打开聚焦Cursor"
         case .focusDeepSeek: "打开聚焦DeepSeek"; case .focusWorkBuddy: "打开聚焦WorkBuddy"; case .focusOpenCode: "打开聚焦OpenCode"

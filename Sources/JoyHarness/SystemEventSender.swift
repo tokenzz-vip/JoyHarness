@@ -106,7 +106,7 @@ final class SystemEventSender {
         case .volumeDown: mediaKey(MediaKey.soundDown, pressed: pressed)
         case .mute: mediaKey(MediaKey.mute, pressed: pressed)
         case .playPause: mediaKey(MediaKey.play, pressed: pressed)
-        case .phrase, .openPhrases, .macro, .toggleMode, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode,
+        case .phrase, .openPhrases, .macro, .toggleMode, .toggleShortcutReference, .cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode,
              .focusChatGPT, .focusClaude, .focusCursor, .focusDeepSeek, .focusWorkBuddy, .focusOpenCode, .disabled: break
         }
     }

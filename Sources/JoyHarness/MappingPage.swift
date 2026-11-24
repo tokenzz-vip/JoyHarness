@@ -7,6 +7,76 @@ struct MappingPage: View {
     let editing: ControllerInput?
     let onRenameProfile: () -> Void
     let onEdit: (ControllerInput, Gesture) -> Void
+    var body: some View {
+        VStack(spacing: SettingsStyle.Spacing.controls) {
+            SettingsPanel {
+                HStack(spacing: SettingsStyle.Spacing.controls) {
+                    Picker("按键方案", selection: Binding(get: { model.selectedProfileID }, set: model.selectProfile)) {
+                        ForEach(model.configuration.profiles) { Text($0.name).tag($0.id) }
+                    }.frame(maxWidth: 360)
+                    Button(action: onRenameProfile) { Image(systemName: "pencil") }
+                        .buttonStyle(.bordered)
+                        .accessibilityLabel("重命名当前按键方案")
+                        .help("重命名当前按键方案")
+                    bindingStatus
+                    Spacer(minLength: 0)
+                    Button("管理绑定") { model.page = .harnesses }
+                }
+            }
+            ControllerMappingDiagram(model: model, editing: editing, onEdit: onEdit)
+        }
+    }
+
+    private var bindingStatus: some View {
+        let bindings = model.configuration.harnesses.filter { $0.profileID == model.selectedProfileID }
+        let bindingDescription = bindings.isEmpty ? "未绑定 Harness" : "已绑定 \(bindings.map(\.name).joined(separator: "、"))"
+        let description = model.activeProfile.id == model.selectedProfileID
+            ? bindingDescription : "\(bindingDescription)。当前应用使用 \(model.activeProfile.name)"
+        return HStack(spacing: SettingsStyle.Spacing.inline) {
+            if bindings.isEmpty {
+                bindingIcon(nil)
+                Text("未绑定 Harness").foregroundStyle(.secondary)
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    bindingIcons(bindings).fixedSize(horizontal: true, vertical: false)
+                    ScrollView(.horizontal) { bindingIcons(bindings) }.frame(height: 26)
+                }
+                Text("已绑定").fontWeight(.medium).fixedSize()
+            }
+        }
+        .font(SettingsStyle.Typography.body)
+        .frame(width: 245, height: 35, alignment: .leading)
+        .help(description)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(description)
+    }
+
+    private func bindingIcons(_ bindings: [HarnessBinding]) -> some View {
+        HStack(spacing: -4) {
+            ForEach(bindings) { bindingIcon($0) }
+        }
+    }
+
+    private func bindingIcon(_ binding: HarnessBinding?) -> some View {
+        Group {
+            if let url = binding?.installedApplicationURL {
+                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit().padding(2)
+            } else {
+                HarnessIcon(size: 14).foregroundStyle(binding == nil ? Color.secondary : Color.accentColor)
+            }
+        }
+        .frame(width: 20, height: 20)
+        .background(Color(nsColor: .controlBackgroundColor), in: Circle())
+        .overlay { Circle().strokeBorder(Color.primary.opacity(0.12)) }
+        .opacity(binding?.enabled == false ? 0.45 : 1)
+    }
+}
+
+@MainActor
+struct ControllerMappingDiagram: View {
+    @ObservedObject var model: DashboardModel
+    var editing: ControllerInput? = nil
+    var onEdit: ((ControllerInput, Gesture) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     @State private var hoveredCard: ControllerInput?
     @State private var hoveredArtwork: ControllerInput?
@@ -29,20 +99,6 @@ struct MappingPage: View {
 
     var body: some View {
         VStack(spacing: SettingsStyle.Spacing.controls) {
-            SettingsPanel {
-                HStack(spacing: SettingsStyle.Spacing.controls) {
-                    Picker("按键方案", selection: Binding(get: { model.selectedProfileID }, set: model.selectProfile)) {
-                        ForEach(model.configuration.profiles) { Text($0.name).tag($0.id) }
-                    }.frame(maxWidth: 360)
-                    Button(action: onRenameProfile) { Image(systemName: "pencil") }
-                        .buttonStyle(.bordered)
-                        .accessibilityLabel("重命名当前按键方案")
-                        .help("重命名当前按键方案")
-                    bindingStatus
-                    Spacer(minLength: 0)
-                    Button("管理绑定") { model.page = .harnesses }
-                }
-            }
             GeometryReader { proxy in
                 let columns = columns
                 let centerWidth = min(240, max(180, proxy.size.width * 0.22))
@@ -53,9 +109,10 @@ struct MappingPage: View {
                 HStack(alignment: .top, spacing: 0) {
                     cardColumn(columns[0], height: rowHeight, spacing: rowSpacing).frame(width: columnWidth)
                     JoyConArtwork(side: side, pressed: emphasized,
-                                  onSelect: { onEdit($0, .single) }, onHover: { hoveredArtwork = $0 },
+                                  onSelect: onEdit.map { edit in { edit($0, .single) } }, onHover: { hoveredArtwork = $0 },
                                   generation: model.controllerProfile.generation, showsStickDirections: true)
                         .frame(width: centerWidth, height: proxy.size.height)
+                        .accessibilityHidden(onEdit == nil)
                     cardColumn(columns[1], height: rowHeight, spacing: rowSpacing).frame(width: columnWidth)
                 }
                 .overlayPreferenceValue(JoyConControlBounds.self) { anchors in
@@ -109,12 +166,12 @@ struct MappingPage: View {
                 HStack(spacing: SettingsStyle.Spacing.inline) {
                     Label("摇杆方向", systemImage: "l.joystick")
                         .font(SettingsStyle.Typography.body.weight(.semibold))
-                    Text(model.currentStickMode(for: side).label)
+                    Text(stickModeLabel)
                         .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                 }
                 HStack(spacing: SettingsStyle.Spacing.inline) {
                     ForEach(ControllerInput.stickDirections(for: side)) { input in
-                        mappingCard(input, height: 56)
+                        mappingCard(input, height: onEdit == nil ? 62 : 56)
                     }
                 }
             }
@@ -129,6 +186,11 @@ struct MappingPage: View {
         }
     }
 
+    private var stickModeLabel: String {
+        let mode = model.currentStickMode(for: side)
+        return onEdit == nil && mode == .pointer ? "鼠标模式 · 方向绑定暂停" : mode.label
+    }
+
     private func connectorOffsets(for input: ControllerInput) -> (inset: CGFloat, tipY: CGFloat, entryY: CGFloat) {
         let isSecondGeneration = model.controllerProfile.generation == .second
         switch input {
@@ -138,50 +200,6 @@ struct MappingPage: View {
         case .capture: return (3, 3, isSecondGeneration ? 12 : 3) // Pass below the lower rail button.
         default: return (3, 0, 0)
         }
-    }
-
-    private var bindingStatus: some View {
-        let bindings = model.configuration.harnesses.filter { $0.profileID == model.selectedProfileID }
-        let bindingDescription = bindings.isEmpty ? "未绑定 Harness" : "已绑定 \(bindings.map(\.name).joined(separator: "、"))"
-        let description = model.activeProfile.id == model.selectedProfileID
-            ? bindingDescription : "\(bindingDescription)。当前应用使用 \(model.activeProfile.name)"
-        return HStack(spacing: SettingsStyle.Spacing.inline) {
-            if bindings.isEmpty {
-                bindingIcon(nil)
-                Text("未绑定 Harness").foregroundStyle(.secondary)
-            } else {
-                ViewThatFits(in: .horizontal) {
-                    bindingIcons(bindings).fixedSize(horizontal: true, vertical: false)
-                    ScrollView(.horizontal) { bindingIcons(bindings) }.frame(height: 26)
-                }
-                Text("已绑定").fontWeight(.medium).fixedSize()
-            }
-        }
-        .font(SettingsStyle.Typography.body)
-        .frame(width: 245, height: 35, alignment: .leading)
-        .help(description)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(description)
-    }
-
-    private func bindingIcons(_ bindings: [HarnessBinding]) -> some View {
-        HStack(spacing: -4) {
-            ForEach(bindings) { bindingIcon($0) }
-        }
-    }
-
-    private func bindingIcon(_ binding: HarnessBinding?) -> some View {
-        Group {
-            if let url = binding?.installedApplicationURL {
-                Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit().padding(2)
-            } else {
-                HarnessIcon(size: 14).foregroundStyle(binding == nil ? Color.secondary : Color.accentColor)
-            }
-        }
-        .frame(width: 20, height: 20)
-        .background(Color(nsColor: .controlBackgroundColor), in: Circle())
-        .overlay { Circle().strokeBorder(Color.primary.opacity(0.12)) }
-        .opacity(binding?.enabled == false ? 0.45 : 1)
     }
 
     private func cardColumn(_ inputs: [ControllerInput], height: CGFloat, spacing: CGFloat) -> some View {
@@ -218,26 +236,32 @@ struct MappingPage: View {
     private func voiceCard(_ input: ControllerInput, height: CGFloat) -> some View {
         let shortcut = model.voiceButton.shortcut
         let summary = "\(shortcut.mode.title) · \(shortcut.label)"
-        return Button { onEdit(input, .single) } label: {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Label(input.label, systemImage: "mic").font(.system(size: 12, weight: .semibold))
-                    Spacer()
-                    Text("全局").foregroundStyle(Color.accentColor)
-                }
-                Text(summary).foregroundStyle(.secondary).lineLimit(1)
+        let label = VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Label(input.label, systemImage: "mic").font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Text("全局").foregroundStyle(Color.accentColor)
             }
-            .font(SettingsStyle.Typography.caption)
-            .padding(8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: height)
-            .contentShape(Rectangle())
+            Text(summary).foregroundStyle(.secondary).lineLimit(1)
         }
-        .buttonStyle(.plain)
-        .focused($focusedTrigger, equals: .init(input: input, gesture: .single))
+        .font(SettingsStyle.Typography.caption)
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: height)
+        .contentShape(Rectangle())
+
+        return Group {
+            if let onEdit {
+                Button { onEdit(input, .single) } label: { label }
+                    .buttonStyle(.plain)
+                    .focused($focusedTrigger, equals: .init(input: input, gesture: .single))
+                    .help("编辑语音模式和快捷键")
+            } else {
+                label.help(summary).accessibilityElement(children: .ignore)
+            }
+        }
         .accessibilityLabel(input.label)
         .accessibilityValue(summary)
-        .help("编辑语音模式和快捷键")
     }
 
     private func gestureCard(_ input: ControllerInput, pressed: Bool) -> some View {
@@ -260,24 +284,35 @@ struct MappingPage: View {
     }
 
     private func triggerButton(_ input: ControllerInput, trigger: Gesture) -> some View {
-        let mapping = model.mappingForEditing(input, gesture: trigger)
+        let mapping = onEdit == nil
+            ? model.activeMapping(for: input, gesture: trigger)
+            : model.mappingForEditing(input, gesture: trigger)
         let configured = mapping.action != .disabled
         let title = model.mappingSummary(mapping)
         let focus = TriggerFocus(input: input, gesture: trigger)
-        return Button { onEdit(input, trigger) } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(trigger.label).font(.system(size: 10))
-                    .foregroundStyle(SettingsStyle.mappingTriggerLabel(in: colorScheme))
-                Text(configured ? title : "– 未设置").font(.system(size: 11, weight: configured ? .semibold : .regular))
-                    .foregroundStyle(configured ? .primary : SettingsStyle.mappingTriggerLabel(in: colorScheme))
-            }
-            .lineLimit(1)
-            .padding(.leading, 8).padding(.trailing, 4)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .contentShape(Rectangle())
+        let label = VStack(alignment: .leading, spacing: 0) {
+            Text(trigger.label).font(.system(size: 10))
+                .foregroundStyle(SettingsStyle.mappingTriggerLabel(in: colorScheme))
+                .lineLimit(1)
+            Text(configured ? title : "– 未设置").font(.system(size: 11, weight: configured ? .semibold : .regular))
+                .foregroundStyle(configured ? .primary : SettingsStyle.mappingTriggerLabel(in: colorScheme))
+                .lineLimit(onEdit == nil ? 2 : 1)
+                .fixedSize(horizontal: false, vertical: onEdit == nil)
         }
-        .buttonStyle(MappingTriggerButtonStyle(isConfigured: configured, isFocused: focusedTrigger == focus))
-        .focused($focusedTrigger, equals: focus)
+        .padding(.leading, 8).padding(.trailing, 4)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
+
+        return Group {
+            if let onEdit {
+                Button { onEdit(input, trigger) } label: { label }
+                    .buttonStyle(MappingTriggerButtonStyle(isConfigured: configured, isFocused: focusedTrigger == focus))
+                    .focused($focusedTrigger, equals: focus)
+            } else {
+                label.background { MappingTriggerBackground(isConfigured: configured) }
+                    .accessibilityElement(children: .ignore)
+            }
+        }
         .overlay(alignment: .leading) {
             if trigger != .single {
                 Rectangle().fill(Color.primary.opacity(0.12)).frame(width: 1)
@@ -302,20 +337,31 @@ private struct MappingTriggerButtonStyle: ButtonStyle {
         let configuration: ButtonStyleConfiguration
         let isConfigured: Bool
         let isFocused: Bool
-        @Environment(\.colorScheme) private var colorScheme
         @State private var hovered = false
 
         var body: some View {
-            let shape = RoundedRectangle(cornerRadius: 4)
-            let base = isConfigured ? (colorScheme == .dark ? 0.10 : 0.08) : 0
             let interaction = configuration.isPressed ? 0.06 : hovered ? 0.03 : 0
             configuration.label.background {
-                shape.fill(Color.primary.opacity(base + interaction))
-                    .overlay { shape.strokeBorder(isFocused ? Color.accentColor : .clear) }
-                    .padding(.horizontal, 2).allowsHitTesting(false)
+                MappingTriggerBackground(isConfigured: isConfigured, isFocused: isFocused, interaction: interaction)
             }
             .onHover { hovered = $0 }
         }
+    }
+}
+
+private struct MappingTriggerBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let isConfigured: Bool
+    var isFocused = false
+    var interaction = 0.0
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 4)
+        let base = isConfigured ? (colorScheme == .dark ? 0.10 : 0.08) : 0
+        shape.fill(Color.primary.opacity(base + interaction))
+            .overlay { shape.strokeBorder(isFocused ? Color.accentColor : .clear) }
+            .padding(.horizontal, 2)
+            .allowsHitTesting(false)
     }
 }
 

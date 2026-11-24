@@ -215,7 +215,7 @@ final class InputEngine {
             guard !inputCaptured else { return }
             if input.isStickDirection && revision != stickModeRevision { continue }
             buttonPressed?(input)
-            let mapping = mappingFor(input, mapping: enabled ? self.profile.mapping : pausedMapping, mode: activeStickMode)
+            let mapping = enabled ? mappingInCurrentStickMode(for: input) : pausedMapping
             let action = mapping[input]
             if action.voiceShortcut?.mode == .tap {
                 activeVoiceTap = activeVoiceTap == nil ? action : nil
@@ -284,9 +284,9 @@ final class InputEngine {
         if deltaX != 0 || deltaY != 0 { pointer?(deltaX, deltaY) }
     }
 
-    private func mappingFor(_ input: ControllerInput, mapping: RemoteMapping, mode: StickMode) -> RemoteMapping {
-        guard enabled, mode == .pointer else { return mapping }
-        var result = mapping
+    func mappingInCurrentStickMode(for input: ControllerInput) -> RemoteMapping {
+        var result = profile.mapping
+        guard activeStickMode == .pointer else { return result }
         let action: RemoteAction?
         if mouseButtonBindings.left == input { action = .mouseLeft }
         else if mouseButtonBindings.right == input { action = .mouseRight }

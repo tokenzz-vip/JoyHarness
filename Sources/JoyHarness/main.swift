@@ -6,6 +6,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
     private var model: DashboardModel?
     private var window: NSWindow?
     private var statusItem: NSStatusItem?
+    private let shortcutReference = ShortcutReferenceController()
     private var lock: SingleInstanceLock?
     private let arguments = ProcessInfo.processInfo.arguments
 
@@ -31,6 +32,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         let model = DashboardModel(); self.model = model
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         model.onMenuChange = { [weak self] in self?.updateMenu() }
+        model.onToggleShortcutReference = { [weak self] in self?.toggleShortcutReference() }
         updateMenu()
         makeWindow(model)
         if !model.setup.completed { model.presentSetup() }
@@ -72,6 +74,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         model?.presentSetup()
     }
     @objc private func toggleMapping() { model?.toggleMapping() }
+    @objc private func toggleShortcutReference() {
+        guard let model else { return }
+        shortcutReference.toggle(model: model)
+    }
     @objc private func rescan() { model?.rescan() }
     @objc private func selectController(_ sender: NSMenuItem) {
         guard let model else { return }
@@ -97,6 +103,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         modeItem.isEnabled = false
         menu.addItem(.separator())
         for (title, action, key) in [("打开主面板", #selector(showWindow), ","),
+                                     (RemoteAction.toggleShortcutReference.label, #selector(toggleShortcutReference), ""),
                                      ("设置向导…", #selector(showSetup), ""),
                                      (model.enabled ? "暂停映射" : "恢复映射", #selector(toggleMapping), ""),
                                      ("重新扫描手柄", #selector(rescan), "")] {
@@ -158,6 +165,17 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
             model.page = page
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.12))
             try render(view, to: directory.appendingPathComponent(page.rawValue + ".png"))
+        }
+        if arguments.contains("--shortcut-reference-preview") {
+            let reference = ShortcutReferenceController()
+            model.themeMode = dark ? .dark : .light
+            let size = arguments.contains("--narrow") ? ShortcutReferenceController.minimumSize : ShortcutReferenceController.defaultSize
+            reference.show(model: model, size: size)
+            defer { reference.dismiss() }
+            guard let referenceView = reference.renderView else { throw RenderFailure.bitmap }
+            referenceView.window?.appearance = window.appearance
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+            try render(referenceView, to: directory.appendingPathComponent("shortcut-reference.png"))
         }
         if macroTagPreview {
             let manager = NSHostingView(rootView: MacroTagManagementSheet(model: model)

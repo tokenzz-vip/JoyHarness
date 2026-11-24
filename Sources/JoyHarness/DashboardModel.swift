@@ -117,6 +117,7 @@ final class DashboardModel: ObservableObject {
     private var harnessFocusRequest = UUID()
     private let preview: Bool
     var onMenuChange: (() -> Void)?
+    var onToggleShortcutReference: (() -> Void)?
 
     init(defaults: UserDefaults = .standard, preview: Bool = false,
          transports: [ControllerTransport]? = nil, inputEngine: InputEngine? = nil,
@@ -208,6 +209,7 @@ final class DashboardModel: ObservableObject {
             }
             controllerSelection.select(devices[2])
             engine.selectDevice(devices[2].id)
+            applyProfile()
             pressed = [.l]
             hidStatus = "一代：截图预览，未启动设备监听"
             bleStatus = "二代：截图预览，未启动设备监听"
@@ -475,6 +477,9 @@ final class DashboardModel: ObservableObject {
     func mappingForEditing(_ input: ControllerInput, gesture: Gesture) -> ButtonMapping {
         globalButton(for: input)?.actions[gesture] ?? selectedProfile.mapping[input, gesture]
     }
+    func activeMapping(for input: ControllerInput, gesture: Gesture) -> ButtonMapping {
+        engine.mappingInCurrentStickMode(for: input)[input, gesture]
+    }
     func globalInputChoices(for id: UUID) -> [ControllerInput] {
         let assigned = Set(globalButtons.filter { $0.id != id }.compactMap(\.input))
         return controllerInputs.filter { !assigned.contains($0) && $0 != voiceInput }
@@ -738,6 +743,12 @@ final class DashboardModel: ObservableObject {
     private func perform(_ mapping: ButtonMapping, pressed: Bool) {
         if pressed && phrasePicker?.model.isPresented == true { return }
         if mapping.action == .toggleMode { if pressed { toggleMapping() }; return }
+        if mapping.action == .toggleShortcutReference {
+            if pressed, enabled, !recordingShortcut, !setup.isPresented, pendingConfigurationImport == nil {
+                onToggleShortcutReference?()
+            }
+            return
+        }
         if [.cycleStickMode, .cycleLeftStickMode, .cycleRightStickMode].contains(mapping.action) {
             if pressed, enabled, !recordingShortcut {
                 engine.cycleStickMode(for: controllerProfile.side)

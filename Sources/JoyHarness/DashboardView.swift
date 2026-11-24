@@ -553,7 +553,7 @@ struct JoyConArtwork: View {
 
     let side: JoyConSide
     let pressed: Set<ControllerInput>
-    let onSelect: (ControllerInput) -> Void
+    let onSelect: ((ControllerInput) -> Void)?
     var onHover: ((ControllerInput?) -> Void)? = nil
     var generation: JoyConGeneration = .first
     var showsStickDirections = false
@@ -624,15 +624,24 @@ struct JoyConArtwork: View {
         }
         .frame(width: size + step * 2, height: size + step * 2)
     }
+    @ViewBuilder
+    private func control<Label: View>(_ input: ControllerInput, @ViewBuilder label: () -> Label) -> some View {
+        if let onSelect {
+            Button { onSelect(input) } label: { label() }.buttonStyle(.plain)
+        } else {
+            label()
+        }
+    }
+
     private func stick(_ input: ControllerInput) -> some View {
         let diameter: CGFloat = isSecondGeneration ? 55 : 50
         let directionOffset = diameter / 2 + 9
         return ZStack {
-            Button { onSelect(input) } label: {
+            control(input) {
                 Circle().fill(pressed.contains(input) ? .white : Color(white: 0.16))
                     .overlay(Circle().strokeBorder(.white.opacity(0.12), lineWidth: 3).padding(5))
                     .frame(width: diameter, height: diameter).shadow(color: .black.opacity(0.22), radius: 2, y: 2)
-            }.buttonStyle(.plain).accessibilityLabel(input.label)
+            }.accessibilityLabel(input.label)
                 .onHover { onHover?($0 ? input : nil) }
                 .anchorPreference(key: JoyConControlBounds.self, value: .bounds) { [input: $0] }
             if showsStickDirections {
@@ -645,17 +654,17 @@ struct JoyConArtwork: View {
         }.frame(width: diameter, height: diameter)
     }
     private func stickDirection(_ input: ControllerInput, symbol: String, x: CGFloat, y: CGFloat) -> some View {
-        Button { onSelect(input) } label: {
+        control(input) {
             Image(systemName: symbol).font(.system(size: 9, weight: .bold))
                 .foregroundStyle(pressed.contains(input) ? accent : .white)
                 .frame(width: 16, height: 16)
                 .background(pressed.contains(input) ? .white : Color(white: 0.16), in: Circle())
-        }.buttonStyle(.plain).offset(x: x, y: y)
-            .accessibilityLabel(input.label).help("编辑\(input.label)")
+        }.offset(x: x, y: y)
+            .accessibilityLabel(input.label).help(onSelect == nil ? input.label : "编辑\(input.label)")
             .onHover { onHover?($0 ? input : nil) }
     }
     private func shoulder(_ input: ControllerInput, x: CGFloat, y: CGFloat) -> some View {
-        Button { onSelect(input) } label: {
+        control(input) {
             Text(input.label)
                 .font(.system(size: 10, weight: .bold, design: .rounded))
                 .foregroundStyle(pressed.contains(input) ? accent : .white)
@@ -672,14 +681,13 @@ struct JoyConArtwork: View {
                 .overlay { RoundedRectangle(cornerRadius: 8).strokeBorder(.white.opacity(0.16), lineWidth: 1) }
                 .shadow(color: .black.opacity(0.26), radius: 3, y: 2)
         }
-        .buttonStyle(.plain)
         .accessibilityLabel(input.label)
         .onHover { onHover?($0 ? input : nil) }
         .anchorPreference(key: JoyConControlBounds.self, value: .bounds) { [input: $0] }
         .position(x: x, y: y)
     }
     private func rail(_ input: ControllerInput, y: CGFloat) -> some View {
-        Button { onSelect(input) } label: {
+        control(input) {
             ZStack {
                 if pressed.contains(input) {
                     Capsule().fill(.white)
@@ -697,7 +705,6 @@ struct JoyConArtwork: View {
             .overlay { Capsule().strokeBorder(.white.opacity(0.16), lineWidth: 1) }
             .shadow(color: .black.opacity(0.26), radius: 3, y: 2)
         }
-        .buttonStyle(.plain)
         .accessibilityLabel(input.label)
         .onHover { onHover?($0 ? input : nil) }
         .anchorPreference(key: JoyConControlBounds.self, value: .bounds) { [input: $0] }
@@ -707,7 +714,7 @@ struct JoyConArtwork: View {
     private func key(_ input: ControllerInput, size: CGFloat) -> some View {
         let isPressed = pressed.contains(input)
         let fill = isPressed ? Color.white : Color(white: 0.17)
-        return Button { onSelect(input) } label: {
+        return control(input) {
             Group {
                 switch input {
                 case .minus, .plus:
@@ -735,7 +742,7 @@ struct JoyConArtwork: View {
             .frame(width: size, height: size)
             .contentShape(Rectangle())
             .shadow(color: .black.opacity(0.16), radius: 1, y: 2)
-        }.buttonStyle(.plain).accessibilityLabel(input.label)
+        }.accessibilityLabel(input.label)
             .onHover { onHover?($0 ? input : nil) }
             .anchorPreference(key: JoyConControlBounds.self, value: .bounds) { [input: $0] }
     }
