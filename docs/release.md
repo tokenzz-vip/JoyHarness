@@ -59,4 +59,6 @@ open .build/JoyHarness-preview.dmg
 
 向 `main` 推送或发起拉取请求时，CI 会在 `macos-15`（Apple Silicon）和 `macos-15-intel`（Intel）上分别运行测试并构建临时签名的预览 DMG。可在 Actions 运行记录下载 `JoyHarness-ci-macos-arm64` 和 `JoyHarness-ci-macos-x86_64`。正式安装包由 Release 工作流签名和公证。
 
+CI 和 Release 仅在 `macos-15-intel` 跳过两项会在可见窗口中渲染映射页 `Canvas` 的布局测试。该 runner 的 Metal 断言会中止测试进程。本机和 Apple Silicon runner 执行完整测试。见 [GitHub runner 问题记录](https://github.com/actions/runner-images/issues/15251)。
+
 Release 在最终 DMG 完成签名、公证与 stapling 后生成更新源，并再次校验 DMG 内的更新地址、版本、最低系统版本、下载大小和 EdDSA 签名。任一检查失败时不会发布版本。详细配置与轮换说明见 [应用更新说明](docs/app-updates.md)。

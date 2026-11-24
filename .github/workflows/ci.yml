@@ -35,6 +35,8 @@ jobs:
           xcodebuild -version
           swift --version
       - name: Run native checks
+        env:
+          JOY_HARNESS_SKIP_CANVAS_LAYOUT_TESTS: ${{ matrix.runner == 'macos-15-intel' && '1' || '0' }}
         run: scripts/test_all.sh
       - name: Build and verify app
         env:
