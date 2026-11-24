@@ -40,10 +40,11 @@ JoyHarness 的 macOS 安装包支持 Intel 与 Apple Silicon，最低系统版�
 | `appcast-x86_64.xml` | Intel Sparkle 签名更新源 |
 | `SHA256SUMS` | 四个 DMG 文件的 SHA-256 校验值 |
 
-下载一个 DMG 和同一 Release 的 `SHA256SUMS` 到同一目录后，在该目录运行以下命令核对文件。
+下载一个 DMG 和同一 Release 的 `SHA256SUMS` 到同一目录后，在该目录运行以下命令核对文件。将 `dmg` 设为下载的文件名。
 
 ```bash
-grep -E '  JoyHarness-macos-(arm64|x86_64)\.dmg' SHA256SUMS | shasum -a 256 -c -
+dmg=JoyHarness-macos-x86_64.dmg
+awk -v file="$dmg" '$2 == file' SHA256SUMS | shasum -a 256 -c -
 ```
 
 ## 本地打包预览
@@ -56,6 +57,6 @@ scripts/package_dmg.sh .build/JoyHarness.app .build/JoyHarness-preview.dmg
 open .build/JoyHarness-preview.dmg
 ```
 
-向 `main` 推送或发起拉取请求时，CI 会在 Apple Silicon 与 Intel runner 上运行测试并构建对应架构的临时签名应用。提供给用户下载的安装包由 Release 工作流签名和公证。
+向 `main` 推送或发起拉取请求时，CI 会在 `macos-15`（Apple Silicon）和 `macos-15-intel`（Intel）上分别运行测试并构建临时签名的预览 DMG。可在 Actions 运行记录下载 `JoyHarness-ci-macos-arm64` 和 `JoyHarness-ci-macos-x86_64`。正式安装包由 Release 工作流签名和公证。
 
 Release 在最终 DMG 完成签名、公证与 stapling 后生成更新源，并再次校验 DMG 内的更新地址、版本、最低系统版本、下载大小和 EdDSA 签名。任一检查失败时不会发布版本。详细配置与轮换说明见 [应用更新说明](docs/app-updates.md)。
