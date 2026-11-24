@@ -23,6 +23,71 @@ struct ControllerSelectionTests {
     private func snapshot(_ buttons: Set<ControllerInput> = [], x: Int = 2048) -> JoyConSnapshot {
         .init(buttons: buttons, stick: .init(x: x, y: 2048), battery: 75, charging: false)
     }
+
+    @Test func setupCapturesOnlyFreshInputFromTheSelectedController() throws {
+        let suite = "JoyHarness.test.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let transport = FakeTransport(), engine = InputEngine()
+        let model = DashboardModel(defaults: defaults, preview: true, transports: [transport], inputEngine: engine)
+        let first = JoyConProfile.all[0], second = JoyConProfile.all[3]
+        model.accessibility = true
+        model.inputMonitoring = true
+        transport.announce("one", first)
+        transport.announce("other", second)
+        var events: [Bool] = []
+        engine.output = { _, pressed in events.append(pressed) }
+        transport.send("one", first)
+        transport.send("one", first, buttons: [.up])
+        #expect(events == [true])
+
+        model.presentSetup()
+        #expect(events == [true, false])
+        model.advanceSetup()
+        model.selectDevice("other")
+        model.advanceSetup()
+        #expect(model.setup.step == .permissions)
+        model.selectDevice("one")
+        for _ in 0..<3 { model.advanceSetup() }
+        #expect(model.setup.step == .trial)
+
+        transport.send("other", second, buttons: [.a])
+        transport.send("one", first, buttons: [.up])
+        #expect(model.setup.testedButtons.isEmpty)
+        transport.send("one", first)
+        transport.send("one", first, buttons: [.up])
+        #expect(model.setup.testedButtons == [.up])
+        model.advanceSetup()
+        #expect(model.setup.step == .complete)
+        model.pauseSetup()
+        #expect(SetupFlow(defaults: defaults).step == .trial)
+        #expect(model.setup.testedButtons.isEmpty)
+        transport.send("one", first, buttons: [.up])
+        transport.send("one", first)
+        #expect(events == [true, false])
+        transport.send("one", first, buttons: [.up])
+        #expect(events == [true, false, true])
+
+        model.presentSetup()
+        transport.send("one", first)
+        transport.send("one", first, buttons: [.up])
+        model.advanceSetup()
+        transport.onDisconnect?("one")
+        model.advanceSetup()
+        #expect(!model.setup.completed)
+        model.setup.goBack(to: .trial)
+        transport.announce("one", first)
+        transport.send("one", first)
+        transport.send("one", first, buttons: [.up])
+        model.advanceSetup()
+        model.advanceSetup()
+        #expect(SetupFlow(defaults: defaults).completed)
+        #expect(model.page == .mapping)
+        model.presentSetup()
+        #expect(model.setup.step == .welcome)
+        model.pauseSetup()
+        #expect(SetupFlow(defaults: defaults).completed)
+    }
     @Test func firstReadyDeviceBindsOnceAndSameModelIsDistinct() throws {
         let profile = JoyConProfile.all[0]
         var selection = ControllerSelection()

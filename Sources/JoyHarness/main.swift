@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 @MainActor
-final class ApplicationDelegate: NSObject, NSApplicationDelegate {
+final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var model: DashboardModel?
     private var window: NSWindow?
     private var statusItem: NSStatusItem?
@@ -31,13 +31,19 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let model = DashboardModel(); self.model = model
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         model.onMenuChange = { [weak self] in self?.updateMenu() }
-        updateMenu(); makeWindow(model); model.start(); if model.openAtLaunch { showWindow() }
+        updateMenu()
+        makeWindow(model)
+        if !model.setup.completed { model.presentSetup() }
+        model.start()
+        if model.openAtLaunch || model.setup.isPresented { showWindow() }
     }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showWindow(); return true }
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
     func applicationWillTerminate(_ notification: Notification) { model?.stop() }
+    func windowWillClose(_ notification: Notification) { model?.pauseSetup() }
     private func makeWindow(_ model: DashboardModel) {
-        let window = Self.dashboardWindow(rootView: DashboardView(model: model))
+        let window = Self.dashboardWindow(rootView: HarnessRootView(model: model, setup: model.setup))
+        window.delegate = self
         window.setFrameAutosaveName("JoyHarness.main")
         window.center()
         self.window = window
@@ -60,6 +66,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         return window
     }
     @objc private func showWindow() { NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
+    @objc private func showSetup() {
+        showWindow()
+        guard window?.attachedSheet == nil else { return }
+        model?.presentSetup()
+    }
     @objc private func toggleMapping() { model?.toggleMapping() }
     @objc private func rescan() { model?.rescan() }
     @objc private func selectController(_ sender: NSMenuItem) {
@@ -86,6 +97,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         modeItem.isEnabled = false
         menu.addItem(.separator())
         for (title, action, key) in [("打开主面板", #selector(showWindow), ","),
+                                     ("设置向导…", #selector(showSetup), ""),
                                      (model.enabled ? "暂停映射" : "恢复映射", #selector(toggleMapping), ""),
                                      ("重新扫描手柄", #selector(rescan), "")] {
             let item = menu.addItem(withTitle: title, action: action, keyEquivalent: key); item.target = self
@@ -135,7 +147,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         let dark = arguments.contains("--dark")
         let size = arguments.contains("--narrow") ? DashboardStyle.minimumWindowSize : Self.defaultWindowSize
         let window = Self.dashboardWindow(
-            rootView: DashboardView(model: model).environment(\.colorScheme, dark ? .dark : .light),
+            rootView: HarnessRootView(model: model, setup: model.setup).environment(\.colorScheme, dark ? .dark : .light),
             size: size
         )
         guard let view = window.contentView else { throw RenderFailure.bitmap }
@@ -230,7 +242,43 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate {
         if arguments.contains("--shortcut-preview") {
             try renderShortcutEditors(model: model, parent: window, directory: directory, dark: dark)
         }
+        if arguments.contains("--setup-preview") {
+            model.page = .settings
+            RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+            if let scrollView = settingsScrollView(in: view), let document = scrollView.documentView {
+                let clip = scrollView.contentView
+                let bottom = document.isFlipped ? document.bounds.maxY - clip.bounds.height : document.bounds.minY
+                clip.scroll(to: CGPoint(x: clip.bounds.minX, y: bottom))
+                scrollView.reflectScrolledClipView(clip)
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+                try render(view, to: directory.appendingPathComponent("settings-general.png"))
+            }
+            model.presentSetup()
+            for step in SetupStep.allCases {
+                if step == .trial { model.pressed = [model.controllerProfile.side == .left ? .up : .a] }
+                RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+                try render(view, to: directory.appendingPathComponent("setup-\(step.rawValue).png"))
+                if (step == .permissions || step == .controller),
+                   let index = model.devices.firstIndex(where: { $0.id == model.controllerSelection.deviceID && $0.ready }) {
+                    model.devices[index].ready = false
+                    RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.15))
+                    try render(view, to: directory.appendingPathComponent("setup-\(step.rawValue)-disconnected.png"))
+                    model.devices[index].ready = true
+                }
+                if step == .permissions {
+                    model.accessibility = true
+                    model.inputMonitoring = true
+                    model.bluetoothGranted = true
+                }
+                if step == .trial { model.setup.observeButtons(model.pressed) }
+                model.advanceSetup()
+            }
+        }
         window.orderOut(nil)
+    }
+    private func settingsScrollView(in view: NSView) -> NSScrollView? {
+        if let scrollView = view as? NSScrollView, scrollView.hasVerticalScroller { return scrollView }
+        return view.subviews.lazy.compactMap { self.settingsScrollView(in: $0) }.first
     }
     private func renderShortcutEditors(model: DashboardModel, parent: NSWindow, directory: URL, dark: Bool) throws {
         guard let input = model.controllerInputs.first(where: { $0 != model.voiceInput }) else { return }

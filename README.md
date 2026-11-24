@@ -17,10 +17,10 @@ JoyHarness 是一款原生 macOS 菜单栏应用。用 Nintendo Switch 的 Joy-C
 ## 快速开始
 
 1. 下载与你的 Mac 芯片匹配的 DMG，把 `JoyHarness.app` 拖到「应用程序」。
-2. 从「应用程序」打开 JoyHarness，在应用的「设置」中授予辅助功能权限。一代手柄还需要输入监控权限，二代手柄需要允许蓝牙访问。按系统提示重新打开应用。
-3. 按下方步骤连接手柄，在「连接与摇杆」选择它。打开「按键映射」查看默认动作，或自行配置单击、双击与长按。
+2. 从「应用程序」打开 JoyHarness，在首次启动的设置向导中选择手柄型号，按提示授予 macOS 权限并连接手柄。
+3. 试用手柄按键和摇杆，完成后进入「按键映射」查看默认动作，或自行配置单击、双击与长按。使用听写工具时，可在向导中一并配置语音快捷键。
 
-菜单栏图标可以重新打开主面板、暂停映射或重新扫描手柄。关闭主面板后，应用仍会在菜单栏运行。
+设置向导可以随时暂停，从「设置 → 通用 → 首次使用」或菜单栏继续。菜单栏图标也可以重新打开主面板、暂停映射或重新扫描手柄。关闭主面板后，应用仍会在菜单栏运行。
 
 ## 支持的手柄
 
@@ -131,6 +131,7 @@ JOY_HARNESS_ARCH=x86_64 scripts/build_app.sh .build/apps/x86_64/JoyHarness.app
 .build/JoyHarness.app/Contents/MacOS/JoyHarness --render-settings /tmp/joyharness-right --controller joycon-2-right --populated
 .build/JoyHarness.app/Contents/MacOS/JoyHarness --render-settings /tmp/joyharness-chatgpt --key-profile chatgpt --narrow
 .build/JoyHarness.app/Contents/MacOS/JoyHarness --render-settings /tmp/joyharness-left --controller joycon-2-left --dark --narrow
+.build/JoyHarness.app/Contents/MacOS/JoyHarness --render-settings /tmp/joyharness-setup --setup-preview
 ```
 
 ## 结构

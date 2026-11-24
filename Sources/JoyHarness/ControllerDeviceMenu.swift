@@ -90,6 +90,7 @@ private struct ControllerDeviceMenuAnchor: NSViewRepresentable {
     func updateNSView(_ button: NSButton, context: Context) {
         context.coordinator.model = model
         button.setAccessibilityLabel("更换手柄，当前：\(model.controllerTitle)")
+        button.setAccessibilityValue(model.controllerConnectionStatus)
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSButton, context: Context) -> CGSize? {

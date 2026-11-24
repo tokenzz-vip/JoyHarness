@@ -36,6 +36,7 @@ enum DashboardPage: String, CaseIterable, Identifiable {
 final class DashboardModel: ObservableObject {
     @Published var page = DashboardPage.mapping
     let updates = AppUpdateModel()
+    let setup: SetupFlow
     @Published private var storedConfiguration: StoredConfiguration
     @Published var pendingConfigurationImport: ConfigurationImportPreview? {
         willSet {
@@ -66,6 +67,7 @@ final class DashboardModel: ObservableObject {
     @Published var frontmostApp = ""
     @Published var accessibility = false
     @Published var inputMonitoring = false
+    @Published var bluetoothGranted = false
     @Published private(set) var recordingShortcut = false
     private var editingCount = 0
     /// Publishes stick-mode changes separately from the dashboard notice.
@@ -121,6 +123,7 @@ final class DashboardModel: ObservableObject {
          now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
          scheduleNoticeDismissal: @escaping CommandQueue.Scheduler = CommandQueue.mainQueue) {
         self.defaults = defaults; self.preview = preview
+        setup = SetupFlow(defaults: defaults)
         self.now = now
         self.scheduleNoticeDismissal = scheduleNoticeDismissal
         themeMode = AppThemeMode(rawValue: defaults.string(forKey: "JoyHarness.theme") ?? "") ?? .system
@@ -222,6 +225,10 @@ final class DashboardModel: ObservableObject {
         return name
     }
     var selectedDeviceReady: Bool { selectedDevice?.ready == true }
+    var controllerConnectionStatus: String? {
+        guard controllerSelection.profileID != nil else { return nil }
+        return selectedDeviceReady ? "已连接" : "未连接"
+    }
     var controllerInputs: [ControllerInput] { controllerProfile.physicalInputs }
     var globalButtons: [GlobalButton] { configuration.globalButtons[controllerProfile.id] ?? [] }
     var voiceButton: VoiceButton { configuration.voiceButtons[controllerProfile.id] ?? .init(input: nil) }
@@ -247,6 +254,7 @@ final class DashboardModel: ObservableObject {
         applyControllerSelection()
     }
     private func applyControllerSelection() {
+        setup.resetTrial()
         phrasePicker?.model.dismiss()
         macros.cancel()
         expireStaleReports()
@@ -282,9 +290,18 @@ final class DashboardModel: ObservableObject {
     }
     private func receiveInput(id: String, profile: JoyConProfile, snapshot: JoyConSnapshot) {
         lastReportTimes[id] = now()
+        let previous = snapshots[id]
         if snapshots[id] != snapshot { snapshots[id] = snapshot }
         // Non-selected input remains available for device diagnostics and calibration.
         guard id == controllerSelection.deviceID else { return }
+        if setup.isPresented {
+            engine.receive(id: id, profile: profile, snapshot: snapshot)
+            if selectedDeviceReady, let previous {
+                setup.observeButtons(snapshot.buttons.subtracting(previous.buttons))
+            }
+            refreshPressed()
+            return
+        }
         if pendingConfigurationImport != nil { refreshPressed(); return }
         if !recordingShortcut {
             let pickerWasPresented = phrasePicker?.model.isPresented == true
@@ -309,6 +326,7 @@ final class DashboardModel: ObservableObject {
     private func markDeviceStale(_ id: String) {
         lastReportTimes[id] = nil
         snapshots[id] = nil
+        if id == controllerSelection.deviceID { setup.resetTrial() }
         if let index = devices.firstIndex(where: { $0.id == id }) {
             Log.app.notice("Controller input report timeout: \(self.devices[index].profile.id, privacy: .public)")
             devices[index].ready = false
@@ -325,6 +343,7 @@ final class DashboardModel: ObservableObject {
             devices[index].status = "已断开"
         }
         if id == controllerSelection.deviceID {
+            setup.resetTrial()
             phrasePicker?.model.dismiss()
             macros.cancel()
             refreshPressed()
@@ -342,7 +361,38 @@ final class DashboardModel: ObservableObject {
     }
     var connectedDevices: [ConnectedJoyCon] { devices.filter(\.ready) }
     var connectedCount: Int { connectedDevices.count }
-    private var canSend: Bool { !preview && accessibility && !recordingShortcut && pendingConfigurationImport == nil }
+    private var canSend: Bool { !preview && accessibility && !recordingShortcut && !setup.isPresented && pendingConfigurationImport == nil }
+
+    var setupReadiness: SetupReadiness {
+        .init(profile: controllerSelection.profile, accessibility: accessibility, inputMonitoring: inputMonitoring,
+              bluetooth: bluetoothGranted, connected: selectedDeviceReady)
+    }
+
+    func presentSetup() {
+        guard !setup.isPresented else { return }
+        phrasePicker?.model.dismiss()
+        harnessComposerFocus.cancel()
+        macros.cancel()
+        engine.setInputCaptured(true)
+        setup.present()
+    }
+
+    func pauseSetup() {
+        guard setup.isPresented else { return }
+        setup.pause()
+        engine.setInputCaptured(false)
+        page = .settings
+    }
+
+    func advanceSetup() {
+        guard setup.isPresented else { return }
+        if !preview { refreshPermissions() }
+        setup.advance(setupReadiness)
+        if !setup.isPresented {
+            engine.setInputCaptured(false)
+            page = .mapping
+        }
+    }
 
     func start() {
         guard !started, !preview else { return }; started = true
@@ -373,6 +423,7 @@ final class DashboardModel: ObservableObject {
         flushStatistics(); started = false
     }
     private func suspend() {
+        setup.resetTrial()
         phrasePicker?.model.dismiss()
         harnessComposerFocus.cancel()
         engine.cancel()
@@ -565,7 +616,11 @@ final class DashboardModel: ObservableObject {
     func refreshPermissions() {
         let allowed = AXIsProcessTrusted()
         if accessibility && !allowed { engine.cancel(); macros.cancel() }
-        accessibility = allowed; inputMonitoring = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
+        if accessibility != allowed { accessibility = allowed }
+        let monitoring = IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) == kIOHIDAccessTypeGranted
+        if inputMonitoring != monitoring { inputMonitoring = monitoring }
+        let bluetooth = CBManager.authorization == .allowedAlways
+        if bluetoothGranted != bluetooth { bluetoothGranted = bluetooth }
     }
     func requestAccessibility() {
         _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
@@ -574,6 +629,9 @@ final class DashboardModel: ObservableObject {
     func requestInputMonitoring() { _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent); openPrivacy("Privacy_ListenEvent") }
     func openPrivacy(_ pane: String) {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") { NSWorkspace.shared.open(url) }
+    }
+    func openBluetoothSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings") { NSWorkspace.shared.open(url) }
     }
     func setLogin(_ value: Bool) {
         do {

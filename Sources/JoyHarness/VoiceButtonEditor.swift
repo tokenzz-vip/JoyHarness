@@ -41,11 +41,7 @@ struct VoiceButtonEditor: View {
                     Text("两种模式分别绑定快捷键，请与语音工具的设置保持一致。")
                         .font(.callout).foregroundStyle(.secondary)
 
-                    modeCard(.hold, detail: "按住说话，松手结束。", keys: Binding(
-                        get: { [draft.holdKey] },
-                        set: { if let key = $0.first { draft.holdKey = key } }
-                    ))
-                    modeCard(.tap, detail: "按一次开始说话，再按语音键结束，也可按其他手柄按键结束。", keys: $draft.tapKeys)
+                    VoiceButtonModeOptions(button: $draft)
 
                     Text("点按模式需与语音工具的点按快捷键一致。")
                         .font(.caption).foregroundStyle(.secondary)
@@ -76,16 +72,35 @@ struct VoiceButtonEditor: View {
         .onAppear { model.beginEditing() }
         .onDisappear { model.endEditing() }
     }
+}
+
+struct VoiceButtonModeOptions: View {
+    @Binding var button: VoiceButton
+    var sideBySide = false
+
+    var body: some View {
+        let layout = sideBySide
+            ? AnyLayout(HStackLayout(alignment: .top, spacing: SettingsStyle.Spacing.controls))
+            : AnyLayout(VStackLayout(alignment: .leading, spacing: SettingsStyle.Spacing.groups))
+        layout {
+            modeCard(.hold, detail: "按住说话，松手结束。", keys: Binding(
+                get: { [button.holdKey] },
+                set: { if let key = $0.first { button.holdKey = key } }
+            ))
+            modeCard(.tap, detail: "按一次开始，再按语音键或其他手柄按键结束。", keys: $button.tapKeys)
+        }
+    }
 
     private func modeCard(_ mode: VoiceTriggerMode, detail: String, keys: Binding<Set<VoiceShortcutKey>>) -> some View {
-        VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
+        let selected = button.mode == mode
+        return VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
             HStack {
-                Button { draft.mode = mode } label: {
-                    Label(mode.title, systemImage: draft.mode == mode ? "largecircle.fill.circle" : "circle")
+                Button { if !selected { button.mode = mode } } label: {
+                    Label(mode.title, systemImage: selected ? "largecircle.fill.circle" : "circle")
                         .font(.system(size: 14, weight: .semibold))
                 }
                 .buttonStyle(.plain)
-                .accessibilityAddTraits(draft.mode == mode ? .isSelected : [])
+                .accessibilityAddTraits(selected ? .isSelected : [])
                 Spacer()
             }
             Text(detail).font(.caption).foregroundStyle(.secondary)

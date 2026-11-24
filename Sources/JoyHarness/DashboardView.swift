@@ -1,5 +1,4 @@
 import AppKit
-import CoreBluetooth
 import SwiftUI
 
 typealias DashboardStyle = SettingsStyle
@@ -318,7 +317,7 @@ struct DashboardView: View {
                         Label("连接信息", systemImage: "antenna.radiowaves.left.and.right").font(SettingsStyle.Typography.panelTitle)
                         Spacer(minLength: 0)
                         Button("重新扫描", action: model.rescan)
-                        Button("打开蓝牙设置") { NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.BluetoothSettings")!) }
+                        Button("打开蓝牙设置", action: model.openBluetoothSettings)
                     }.controlSize(.small)
                     HStack {
                         VStack(alignment: .leading, spacing: 6) {
@@ -454,14 +453,14 @@ struct DashboardView: View {
             }
             GlobalButtonsPanel(model: model)
             SettingsPanel("权限", symbol: "shield.lefthalf.filled") {
-                permissionRow("蓝牙", detail: "发现并连接 Joy-Con 2", symbol: "antenna.radiowaves.left.and.right",
-                              granted: CBManager.authorization == .allowedAlways) { model.openPrivacy("Privacy_Bluetooth") }
+                SettingsPermissionRow("蓝牙", detail: "发现并连接 Joy-Con 2", symbol: "antenna.radiowaves.left.and.right",
+                                      granted: model.bluetoothGranted) { model.openPrivacy("Privacy_Bluetooth") }
                 Divider()
-                permissionRow("输入监控", detail: "接收一代 Joy-Con 的 HID 按键", symbol: "keyboard",
-                              granted: model.inputMonitoring, action: model.requestInputMonitoring)
+                SettingsPermissionRow("输入监控", detail: "接收一代 Joy-Con 的 HID 按键", symbol: "keyboard",
+                                      granted: model.inputMonitoring, action: model.requestInputMonitoring)
                 Divider()
-                permissionRow("辅助功能", detail: "向当前应用发送键盘与鼠标操作", symbol: "hand.raised",
-                              granted: model.accessibility, action: model.requestAccessibility)
+                SettingsPermissionRow("辅助功能", detail: "向当前应用发送键盘与鼠标操作", symbol: "hand.raised",
+                                      granted: model.accessibility, action: model.requestAccessibility)
             }
             SettingsPanel("通用", symbol: "gearshape") {
                 SettingsPreference(symbol: "arrow.up.arrow.down", title: "配置导入与导出", detail: "备份全局按键、键位方案、Harness、组合动作、常用语和摇杆设置。") {
@@ -497,8 +496,9 @@ struct DashboardView: View {
                     }.labelsHidden().pickerStyle(.segmented).frame(width: 240)
                 }
                 Divider()
-                SettingsPreference(symbol: "gamecontroller", title: "连接手柄", detail: "一代在系统蓝牙中配对；二代长按 SYNC 后扫描。") {
-                    Button("查看连接设置") { model.page = .connection }
+                SettingsPreference(symbol: "arrow.counterclockwise.circle", title: "首次使用",
+                                   detail: "检查系统权限、连接手柄和试用按键，可随时继续未完成的设置。") {
+                    Button(model.setup.completed ? "重新运行设置向导" : "继续设置向导", action: model.presentSetup)
                 }
             }
             SettingsPanel("诊断与支持", symbol: "stethoscope") {
@@ -509,14 +509,6 @@ struct DashboardView: View {
                     Button("刷新状态", action: model.refreshPermissions)
                     Button("提交反馈") { feedbackVisible = true }
                 }
-            }
-        }
-    }
-    private func permissionRow(_ title: String, detail: String, symbol: String, granted: Bool, action: @escaping () -> Void) -> some View {
-        SettingsPreference(symbol: symbol, title: title, detail: detail) {
-            HStack(spacing: 12) {
-                SettingsStatus(title: granted ? "已授权" : "待授权", color: granted ? .green : .orange)
-                Button(granted ? "系统设置" : "前往授权", action: action).frame(width: 84)
             }
         }
     }

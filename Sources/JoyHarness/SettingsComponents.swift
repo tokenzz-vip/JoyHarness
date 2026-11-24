@@ -131,6 +131,33 @@ struct SettingsStatus: View {
     }
 }
 
+struct SettingsPermissionRow: View {
+    let title: String
+    let detail: String
+    let symbol: String
+    let granted: Bool
+    let action: () -> Void
+
+    init(_ title: String, detail: String, symbol: String, granted: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.detail = detail
+        self.symbol = symbol
+        self.granted = granted
+        self.action = action
+    }
+
+    var body: some View {
+        SettingsPreference(symbol: symbol, title: title, detail: detail) {
+            HStack(spacing: SettingsStyle.Spacing.controls) {
+                SettingsStatus(title: granted ? "已授权" : "待授权", color: granted ? .green : .orange)
+                Button(granted ? "系统设置" : "前往授权", action: action)
+                    .frame(width: 84)
+                    .accessibilityLabel(granted ? "打开\(title)设置" : "授权\(title)")
+            }
+        }
+    }
+}
+
 struct SettingsPreference<Control: View>: View {
     let symbol: String
     let title: String

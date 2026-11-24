@@ -167,6 +167,7 @@ final class InputEngine {
         if captured {
             cancel()
         } else if let id = selectedDeviceID, let snapshot = devices[id]?.snapshot {
+            awaitingFirstReport = false
             suppressedButtons = snapshot.buttons.filter { !$0.isStickDirection }
             let stick = snapshot.stick.normalized(center: centers[id], deadzone: deadzone)
             awaitingNeutralStick = stick.x != 0 || stick.y != 0
