@@ -8,15 +8,15 @@ JoyHarness 是一款原生 macOS 菜单栏应用。用 Nintendo Switch 的 Joy-C
 
 **键位方案随前台 Harness 应用自动切换。** 同一只手柄可以在 ChatGPT 中发送消息，在 Cursor 中执行编辑操作。
 
-**运行环境** · Apple Silicon Mac · macOS 15 或更新版本 · 简体中文界面
+**运行环境** · Intel 或 Apple Silicon Mac · macOS 14 或更新版本 · 简体中文界面
 
-[下载最新 DMG](https://github.com/tokenzz-vip/JoyHarness/releases/latest/download/JoyHarness-macos-arm64.dmg) · [查看所有版本](https://github.com/tokenzz-vip/JoyHarness/releases) · [快速开始](#快速开始) · [反馈问题](https://github.com/tokenzz-vip/JoyHarness/issues)
+[下载 Apple Silicon 版](https://github.com/tokenzz-vip/JoyHarness/releases/latest/download/JoyHarness-macos-arm64.dmg) · [下载 Intel 版](https://github.com/tokenzz-vip/JoyHarness/releases/latest/download/JoyHarness-macos-x86_64.dmg) · [查看所有版本](https://github.com/tokenzz-vip/JoyHarness/releases) · [快速开始](#快速开始) · [反馈问题](https://github.com/tokenzz-vip/JoyHarness/issues)
 
 ![JoyHarness 按键映射界面，显示 Joy-Con 2 右手柄与 ChatGPT 键位方案](docs/images/key-mapping.png)
 
 ## 快速开始
 
-1. 下载并打开 Apple Silicon 版 DMG，把 `JoyHarness.app` 拖到「应用程序」。
+1. 下载与你的 Mac 芯片匹配的 DMG，把 `JoyHarness.app` 拖到「应用程序」。
 2. 从「应用程序」打开 JoyHarness，在应用的「设置」中授予辅助功能权限。一代手柄还需要输入监控权限，二代手柄需要允许蓝牙访问。按系统提示重新打开应用。
 3. 按下方步骤连接手柄，在「连接与摇杆」选择它。打开「按键映射」查看默认动作，或自行配置单击、双击与长按。
 
@@ -96,7 +96,9 @@ JoyHarness 是一款原生 macOS 菜单栏应用。用 Nintendo Switch 的 Joy-C
 
 ## 构建
 
-需要 Apple Silicon、Xcode 16+ / Swift 6、macOS 15+。
+需要 Intel 或 Apple Silicon、Xcode 16+ / Swift 6、macOS 14+。
+
+GitHub Actions 在原生 Apple Silicon 与 Intel runner 上分别运行测试和构建。`scripts/build_app.sh` 默认构建当前机器架构，也可通过 `JOY_HARNESS_ARCH=arm64` 或 `JOY_HARNESS_ARCH=x86_64` 指定目标架构。应用及 Sparkle 辅助进程会逐一检查目标架构和 macOS 14 最低版本，两个架构的 DMG 与更新源在同一 Release 中发布。
 
 ```bash
 scripts/test_all.sh
@@ -107,6 +109,13 @@ scripts/test_all.sh
 ```bash
 zsh -ic 'scripts/build_app.sh .build/JoyHarness.app'
 open .build/JoyHarness.app
+```
+
+按目标架构分别构建时使用独立输出目录：
+
+```bash
+JOY_HARNESS_ARCH=arm64 scripts/build_app.sh .build/apps/arm64/JoyHarness.app
+JOY_HARNESS_ARCH=x86_64 scripts/build_app.sh .build/apps/x86_64/JoyHarness.app
 ```
 
 本地打包默认使用有效的签名证书。可以显式设置 `JOY_HARNESS_ALLOW_ADHOC=1` 生成临时签名构建，重新编译后通常需要再次授予系统输入权限。

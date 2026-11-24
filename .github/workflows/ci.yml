@@ -10,38 +10,35 @@ permissions:
 
 jobs:
   test:
-    name: Test and build (arm64)
-    runs-on: macos-15
-    defaults:
-      run:
-        shell: bash
+    name: Test and build (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            runner: xcode-27
+          - arch: x86_64
+            runner: macos-15-intel
+    runs-on: ${{ matrix.runner }}
+    env:
+      JOY_HARNESS_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-
+      - name: Select ARM toolchain
+        if: matrix.arch == 'arm64'
+        run: echo 'DEVELOPER_DIR=/Applications/Xcode_27.1.app/Contents/Developer' >> "$GITHUB_ENV"
       - name: Show native toolchain
         run: |
-          test "$(uname -m)" = arm64
+          test "$(uname -m)" = "$JOY_HARNESS_ARCH"
           xcodebuild -version
           swift --version
-
       - name: Run native checks
         run: scripts/test_all.sh
-
-      - name: Build and verify Apple Silicon app
+      - name: Build and verify architecture-specific app
         env:
           JOY_HARNESS_ALLOW_ADHOC: '1'
         run: |
           scripts/build_app.sh "$RUNNER_TEMP/JoyHarness.app"
-          test "$(lipo -archs "$RUNNER_TEMP/JoyHarness.app/Contents/MacOS/JoyHarness")" = arm64
-
-      - name: Package preview DMG
-        run: scripts/package_dmg.sh "$RUNNER_TEMP/JoyHarness.app" "$RUNNER_TEMP/JoyHarness-ci-macos-arm64.dmg"
-
-      - name: Upload preview DMG
-        uses: actions/upload-artifact@v7
-        with:
-          name: JoyHarness-ci-macos-arm64
-          path: ${{ runner.temp }}/JoyHarness-ci-macos-arm64.dmg
-          if-no-files-found: error
+          python3 scripts/app_architecture.py verify "$RUNNER_TEMP/JoyHarness.app" "$JOY_HARNESS_ARCH"

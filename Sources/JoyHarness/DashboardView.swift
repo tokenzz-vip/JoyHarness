@@ -447,7 +447,7 @@ struct DashboardView: View {
                             Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.2.0")
                                 .font(.system(size: 14, weight: .semibold)).monospacedDigit()
                         }.font(SettingsStyle.Typography.body)
-                        Text("Apple Silicon · macOS 15 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                        Text("Intel 或 Apple Silicon · macOS 14 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                         AppUpdateSettingsView(model: model.updates)
                     }.frame(width: 300, alignment: .leading)
                 }.fixedSize(horizontal: false, vertical: true)

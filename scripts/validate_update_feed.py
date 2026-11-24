@@ -35,7 +35,7 @@ def read_dmg_info(archive):
 
 
 def validate(feed, archive, tag, repository, architecture):
-    if architecture != "arm64":
+    if architecture not in {"arm64", "x86_64"}:
         raise ValueError("Unsupported target architecture")
     if Path(archive).name != f"JoyHarness-{tag}-macos-{architecture}.dmg":
         raise ValueError("Archive name must match the target architecture")
@@ -43,11 +43,9 @@ def validate(feed, archive, tag, repository, architecture):
         raise ValueError("Feed name must match the target architecture")
     ns = {"s": "http://www.andymatuschak.org/xml-namespaces/sparkle"}
     info = read_dmg_info(archive)
-    expected_feed = (
-        f"https://github.com/{repository}/releases/latest/download/appcast-{architecture}.xml"
-    )
+    expected_feed = f"https://github.com/{repository}/releases/latest/download/appcast-{architecture}.xml"
     if info.get("SUFeedURL") != expected_feed:
-        raise ValueError("Application update feed does not match the repository")
+        raise ValueError("Application update feed does not match the target architecture or repository")
     items = ET.parse(feed).findall("./channel/item")
     if len(items) != 1:
         raise ValueError("The release feed must contain exactly one update")

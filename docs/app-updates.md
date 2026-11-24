@@ -10,13 +10,15 @@ JoyHarness 使用 SwiftPM 固定版本的 Sparkle 2.10.1，提供与 RcHarness �
 
 ## 更新源
 
-当前安装包和更新源仅支持 Apple Silicon：
+当前安装包和更新源分别提供 Apple Silicon 与 Intel 版本：
 
 ```text
 https://github.com/tokenzz-vip/JoyHarness/releases/latest/download/appcast-arm64.xml
+
+https://github.com/tokenzz-vip/JoyHarness/releases/latest/download/appcast-x86_64.xml
 ```
 
-`appcast-arm64.xml` 指向同一 Release 中带版本的 DMG。README 中的固定 DMG 地址与带版本号 DMG 内容相同，方便首次安装；Sparkle 使用带版本地址，确保更新源和安装包一致。
+每个架构的 appcast 都指向同一 Release 中对应架构的带版本 DMG。README 中的固定 DMG 地址与带版本号 DMG 内容相同，方便首次安装；Sparkle 使用带版本地址，确保更新源和安装包一致。
 
 ## 签名密钥
 
@@ -45,4 +47,4 @@ Release 工作流在最终 DMG 完成 Developer ID 签名、Apple 公证和 stap
 - 更新 URL 与本 Release 的具体 DMG 一致；
 - appcast 与更新包的 Ed25519 签名有效。
 
-发布附件包括带版本 DMG、固定名称 DMG、`appcast-arm64.xml` 和 `SHA256SUMS`。构建脚本把 Sparkle framework、XPC 服务和 Updater 辅助程序嵌入应用，裁剪为 arm64，并由内到外使用同一次 Developer ID 身份重新签名。
+发布附件包括两个架构各自的带版本 DMG、固定名称 DMG、`appcast-arm64.xml`、`appcast-x86_64.xml` 和 `SHA256SUMS`。构建脚本把 Sparkle framework、XPC 服务和 Updater 辅助程序嵌入应用，裁剪为目标架构，并由内到外使用同一次 Developer ID 身份重新签名。应用和更新包最低支持 macOS 14。

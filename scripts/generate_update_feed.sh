@@ -7,8 +7,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="${1:?release assets directory required}"
 TAG="${2:?release tag required}"
 REPO="${3:-tokenzz-vip/JoyHarness}"
-ARCH="${4:?target architecture required}"
-case "$ARCH" in arm64) ;; *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; esac
+ARCH="${4:?target architecture required: arm64 or x86_64}"
+case "$ARCH" in arm64|x86_64) ;; *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;; esac
 
 ARCHIVE="$DIST/JoyHarness-$TAG-macos-$ARCH.dmg"
 FEED="$DIST/appcast-$ARCH.xml"

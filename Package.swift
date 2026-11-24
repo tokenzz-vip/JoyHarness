@@ -3,7 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "JoyHarness",
-    platforms: [.macOS(.v15)],
+    platforms: [.macOS(.v14)],
     products: [.executable(name: "JoyHarness", targets: ["JoyHarness"])],
     dependencies: [
         .package(url: "https://github.com/sparkle-project/Sparkle", exact: "2.10.1"),
