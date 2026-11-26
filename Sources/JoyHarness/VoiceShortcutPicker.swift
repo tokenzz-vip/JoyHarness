@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct VoiceShortcutPicker: View {
+    @Environment(\.appColorMode) private var colorMode
     let mode: VoiceTriggerMode
     @Binding var keys: Set<VoiceShortcutKey>
     @State private var isPresented = false
@@ -31,7 +32,7 @@ struct VoiceShortcutPicker: View {
                 .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
                 .overlay {
                     RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
-                        .strokeBorder(isPresented ? Color.accentColor : Color.primary.opacity(hovering ? 0.22 : 0.12))
+                        .strokeBorder(isPresented ? colorMode.palette.selectionTint : Color.primary.opacity(hovering ? 0.22 : 0.12))
                 }
                 .contentShape(Rectangle())
             }
@@ -104,7 +105,7 @@ struct VoiceShortcutSelectionPanel: View {
                 Spacer()
                 Button("取消") { close(nil) }.keyboardShortcut(.cancelAction)
                 Button("使用快捷键") { close(selection) }
-                    .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                    .buttonStyle(SettingsActionButtonStyle(prominent: true)).keyboardShortcut(.defaultAction)
                     .disabled(selection.isEmpty)
             }
             .padding(.horizontal, 16).padding(.vertical, 12)
@@ -124,15 +125,15 @@ struct VoiceShortcutSelectionPanel: View {
 }
 
 private struct VoiceShortcutKeyButton: View {
+    @Environment(\.appColorMode) private var colorMode
     let key: VoiceShortcutKey
     let selected: Bool
     let action: () -> Void
     @State private var hovering = false
     @Environment(\.isEnabled) private var isEnabled
-    @Environment(\.colorScheme) private var colorScheme
 
     private var background: Color {
-        if selected { return Color.accentColor.opacity(colorScheme == .dark ? 0.19 : 0.08) }
+        if selected { return colorMode.palette.selectionBackground }
         return hovering && isEnabled ? Color.primary.opacity(0.075) : SettingsStyle.subtle
     }
 
@@ -148,7 +149,7 @@ private struct VoiceShortcutKeyButton: View {
                     .font(.system(size: 13)).lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: "checkmark")
-                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.accentColor)
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(colorMode.palette.selectionTint)
                     .opacity(selected ? 1 : 0).frame(width: 12)
             }
             .padding(.horizontal, 10)

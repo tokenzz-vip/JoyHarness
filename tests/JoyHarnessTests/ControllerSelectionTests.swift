@@ -304,6 +304,8 @@ struct ControllerMenuTests {
         let suite = "JoyHarness.tests.\(UUID())", defaults = UserDefaults(suiteName: suite)!
         defer { defaults.removePersistentDomain(forName: suite) }
         let model = DashboardModel(defaults: defaults, preview: true, transports: [])
+        #expect(model.colorMode == .iris)
+        model.colorMode = .safari
         model.themeMode = .dark; model.showDockIcon = false; model.openAtLaunch = false
         #expect(model.profileNameError("   ") != nil)
         let saved = model.saveProfile(name: "  浏览器  ")
@@ -318,8 +320,11 @@ struct ControllerMenuTests {
         #expect(browser)
         model.statistics.record(.a); model.clearStatistics()
         let restored = DashboardModel(defaults: defaults, preview: true, transports: [])
+        #expect(restored.colorMode == .safari)
         #expect(restored.themeMode == .dark); #expect(!restored.showDockIcon); #expect(!restored.openAtLaunch)
         #expect(restored.selectedProfile.name == "浏览器"); #expect(restored.statistics.total == 0)
+        defaults.set("unknown-palette", forKey: "JoyHarness.colorMode")
+        #expect(DashboardModel(defaults: defaults, preview: true, transports: []).colorMode == .iris)
     }
 }
 

@@ -4,6 +4,7 @@ import SwiftUI
 /// Shared anchored dropdown for single and multiple selection lists.
 @MainActor
 struct SettingsSelectionPopover<Label: View, Content: View>: View {
+    @Environment(\.appColorMode) private var colorMode
     let title: String
     let accessibilityLabel: String
     let identifier: String
@@ -38,7 +39,7 @@ struct SettingsSelectionPopover<Label: View, Content: View>: View {
         .overlay {
             SettingsSelectionPopoverAnchor(isPresented: $isPresented,
                     accessibilityLabel: accessibilityLabel, accessibilityValue: accessibilityValue ?? title,
-                    accessibilityHelp: accessibilityHelp, identifier: identifier, content: content)
+                    accessibilityHelp: accessibilityHelp, identifier: identifier, colorMode: colorMode, content: content)
         }
     }
 }
@@ -64,6 +65,7 @@ private struct SettingsSelectionPopoverAnchor<Content: View>: NSViewRepresentabl
     let accessibilityValue: String
     let accessibilityHelp: String
     let identifier: String
+    let colorMode: AppColorMode
     let content: (CGFloat, @escaping () -> Void) -> Content
 
     func makeCoordinator() -> Coordinator { Coordinator(configuration: self) }
@@ -114,6 +116,8 @@ private struct SettingsSelectionPopoverAnchor<Content: View>: NSViewRepresentabl
             let anchorRect = window.convertToScreen(sender.convert(sender.bounds, to: nil))
             let availableHeight = max(28, min(320, anchorRect.minY - screen.visibleFrame.minY - 40))
             let content = configuration.content(availableHeight, { [weak self] in self?.popover.performClose(nil) })
+                .environment(\.appColorMode, configuration.colorMode)
+                .tint(configuration.colorMode.palette.selectionTint)
                 .frame(width: sender.bounds.width)
                 .background(Color(nsColor: .windowBackgroundColor))
             let controller = NSHostingController(rootView: content)
@@ -137,6 +141,7 @@ private struct SettingsSelectionPopoverAnchor<Content: View>: NSViewRepresentabl
 struct SettingsSelectionRow: View {
     let title: String
     let selected: Bool
+    var swatch: Color? = nil
     let action: () -> Void
 
     var body: some View {
@@ -146,6 +151,7 @@ struct SettingsSelectionRow: View {
                     .font(.system(size: 11, weight: .semibold))
                     .opacity(selected ? 1 : 0)
                     .frame(width: 14)
+                if let swatch { SettingsColorSwatch(color: swatch) }
                 Text(title).lineLimit(1).truncationMode(.tail)
                 Spacer(minLength: 0)
             }
@@ -168,6 +174,7 @@ private struct SettingsSelectionRowStyle: ButtonStyle {
     }
 
     private struct Row: View {
+        @Environment(\.appColorMode) private var colorMode
         let configuration: ButtonStyleConfiguration
         @State private var hovering = false
         @Environment(\.isEnabled) private var isEnabled
@@ -175,7 +182,7 @@ private struct SettingsSelectionRowStyle: ButtonStyle {
         var body: some View {
             configuration.label
                 .foregroundStyle(!isEnabled ? Color.secondary : hovering || configuration.isPressed ? Color.white : Color.primary)
-                .background(isEnabled && (hovering || configuration.isPressed) ? Color.accentColor : .clear,
+                .background(isEnabled && (hovering || configuration.isPressed) ? colorMode.palette.actionTint : .clear,
                             in: RoundedRectangle(cornerRadius: 4))
                 .onHover { hovering = $0 }
         }

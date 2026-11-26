@@ -3,49 +3,88 @@ import SwiftUI
 
 @MainActor
 struct MappingPage: View {
+    @Environment(\.appColorMode) private var colorMode
     @ObservedObject var model: DashboardModel
     let editing: ControllerInput?
     let onRenameProfile: () -> Void
     let onEdit: (ControllerInput, Gesture) -> Void
     var body: some View {
         VStack(spacing: SettingsStyle.Spacing.controls) {
-            SettingsPanel {
-                HStack(spacing: SettingsStyle.Spacing.controls) {
-                    Picker("按键方案", selection: Binding(get: { model.selectedProfileID }, set: model.selectProfile)) {
-                        ForEach(model.configuration.profiles) { Text($0.name).tag($0.id) }
-                    }.frame(maxWidth: 360)
-                    Button(action: onRenameProfile) { Image(systemName: "pencil") }
-                        .buttonStyle(.bordered)
-                        .accessibilityLabel("重命名当前按键方案")
-                        .help("重命名当前按键方案")
-                    bindingStatus
-                    Spacer(minLength: 0)
-                    Button("管理绑定") { model.page = .harnesses }
+            HStack(spacing: SettingsStyle.Spacing.controls) {
+                Picker("编辑方案", selection: Binding(get: { model.selectedProfileID }, set: model.selectProfile)) {
+                    ForEach(model.configuration.profiles) { Text($0.name).tag($0.id) }
                 }
+                .font(SettingsStyle.Typography.body)
+                .frame(minWidth: 195, idealWidth: 270, maxWidth: 300)
+                Button(action: onRenameProfile) { Image(systemName: "pencil") }
+                    .accessibilityLabel("重命名当前按键方案")
+                    .help("重命名当前按键方案")
+                Divider().frame(height: 20)
+                activeProfileStatus
+                    .layoutPriority(1)
+                Spacer(minLength: 0)
+                bindingStatus
+                Button("管理绑定") { model.page = .harnesses }
+                    .fixedSize()
+            }
+            .buttonStyle(SettingsActionButtonStyle())
+            .padding(.horizontal, SettingsStyle.controlPadding)
+            .padding(.vertical, SettingsStyle.Spacing.inline)
+            .background(SettingsStyle.panelBackground, in: RoundedRectangle(cornerRadius: SettingsStyle.panelRadius))
+            .overlay {
+                RoundedRectangle(cornerRadius: SettingsStyle.panelRadius)
+                    .strokeBorder(SettingsStyle.workspaceDivider)
+                    .allowsHitTesting(false)
             }
             ControllerMappingDiagram(model: model, editing: editing, onEdit: onEdit)
         }
     }
 
+    private var activeProfileStatus: some View {
+        let profile = model.activeProfile
+        let isEditingActiveProfile = profile.id == model.selectedProfileID
+        let title = isEditingActiveProfile ? "当前生效" : "生效方案"
+        return Group {
+            if model.enabled {
+                HStack(spacing: 6) {
+                    Label(title, systemImage: isEditingActiveProfile ? "checkmark.circle.fill" : "checkmark.circle")
+                        .foregroundStyle(colorMode.palette.selectionTint)
+                        .fixedSize()
+                    if !isEditingActiveProfile {
+                        Text(profile.name)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .help("当前生效的方案是「\(profile.name)」")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("生效方案")
+                .accessibilityValue(profile.name)
+            } else {
+                Label("映射已暂停", systemImage: "pause.circle")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(SettingsStyle.Typography.body)
+    }
+
     private var bindingStatus: some View {
         let bindings = model.configuration.harnesses.filter { $0.profileID == model.selectedProfileID }
-        let bindingDescription = bindings.isEmpty ? "未绑定 Harness" : "已绑定 \(bindings.map(\.name).joined(separator: "、"))"
-        let description = model.activeProfile.id == model.selectedProfileID
-            ? bindingDescription : "\(bindingDescription)。当前应用使用 \(model.activeProfile.name)"
+        let description = bindings.isEmpty ? "编辑方案未绑定应用" : "编辑方案已绑定 \(bindings.map(\.name).joined(separator: "、"))"
         return HStack(spacing: SettingsStyle.Spacing.inline) {
             if bindings.isEmpty {
                 bindingIcon(nil)
-                Text("未绑定 Harness").foregroundStyle(.secondary)
+                Text("未绑定应用").foregroundStyle(.secondary).fixedSize()
             } else {
                 ViewThatFits(in: .horizontal) {
                     bindingIcons(bindings).fixedSize(horizontal: true, vertical: false)
                     ScrollView(.horizontal) { bindingIcons(bindings) }.frame(height: 26)
                 }
-                Text("已绑定").fontWeight(.medium).fixedSize()
+                Text("已绑定").foregroundStyle(.secondary).fixedSize()
             }
         }
         .font(SettingsStyle.Typography.body)
-        .frame(width: 245, height: 35, alignment: .leading)
+        .frame(maxWidth: 166, alignment: .trailing)
         .help(description)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(description)
@@ -62,7 +101,7 @@ struct MappingPage: View {
             if let url = binding?.installedApplicationURL {
                 Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().scaledToFit().padding(2)
             } else {
-                HarnessIcon(size: 14).foregroundStyle(binding == nil ? Color.secondary : Color.accentColor)
+                HarnessIcon(size: 14).foregroundStyle(binding == nil ? Color.secondary : colorMode.palette.selectionTint)
             }
         }
         .frame(width: 20, height: 20)
@@ -74,6 +113,7 @@ struct MappingPage: View {
 
 @MainActor
 struct ControllerMappingDiagram: View {
+    @Environment(\.appColorMode) private var colorMode
     @ObservedObject var model: DashboardModel
     var editing: ControllerInput? = nil
     var onEdit: ((ControllerInput, Gesture) -> Void)? = nil
@@ -133,7 +173,7 @@ struct ControllerMappingDiagram: View {
                                     let edge = fromLeft ? min(faceEdge, end.x) : max(faceEdge, end.x)
                                     let entry = CGPoint(x: edge, y: target.midY + offsets.entryY)
                                     let lane = edge - direction * 12
-                                    let color = emphasized.contains(input) ? Color.accentColor : .primary.opacity(colorScheme == .dark ? 0.26 : 0.17)
+                                    let color = emphasized.contains(input) ? colorMode.palette.selectionTint : .primary.opacity(colorScheme == .dark ? 0.26 : 0.17)
                                     let width: CGFloat = model.pressed.contains(input) ? 2 : emphasized.contains(input) ? 1.5 : 1
                                     var guide = Path()
                                     guide.move(to: start)
@@ -152,7 +192,7 @@ struct ControllerMappingDiagram: View {
                                     leader.move(to: CGPoint(x: end.x - direction * 4, y: end.y - 2.5))
                                     leader.addLine(to: end)
                                     leader.addLine(to: CGPoint(x: end.x - direction * 4, y: end.y + 2.5))
-                                    context.stroke(leader, with: .color(emphasized.contains(input) ? .accentColor : .white.opacity(0.46)),
+                                    context.stroke(leader, with: .color(emphasized.contains(input) ? colorMode.palette.selectionTint : .white.opacity(0.46)),
                                                    style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
                                 }
                             }
@@ -222,9 +262,9 @@ struct ControllerMappingDiagram: View {
                     .frame(height: height)
             }
         }
-        .background(active ? Color.accentColor.opacity(pressed ? 0.17 : 0.09) : SettingsStyle.subtle, in: shape)
+        .background(active ? colorMode.palette.selectionTint.opacity(pressed ? 0.17 : 0.09) : SettingsStyle.subtle, in: shape)
         .overlay {
-            shape.strokeBorder(active ? Color.accentColor.opacity(pressed ? 0.82 : 0.5) : Color.primary.opacity(0.07))
+            shape.strokeBorder(active ? colorMode.palette.selectionTint.opacity(pressed ? 0.82 : 0.5) : Color.primary.opacity(0.07))
                 .allowsHitTesting(false)
         }
         .onHover { hovering in
@@ -240,7 +280,7 @@ struct ControllerMappingDiagram: View {
             HStack {
                 Label(input.label, systemImage: "mic").font(.system(size: 12, weight: .semibold))
                 Spacer()
-                Text("全局").foregroundStyle(Color.accentColor)
+                Text("全局").foregroundStyle(colorMode.palette.selectionTint)
             }
             Text(summary).foregroundStyle(.secondary).lineLimit(1)
         }
@@ -271,7 +311,7 @@ struct ControllerMappingDiagram: View {
                 Spacer(minLength: 0)
                 if model.globalButton(for: input) != nil {
                     Text("全局")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(colorMode.palette.selectionTint)
                         .accessibilityLabel("全局按键")
                 }
                 if pressed { Circle().fill(.green).frame(width: 6, height: 6) }
@@ -350,6 +390,7 @@ private struct MappingTriggerButtonStyle: ButtonStyle {
 }
 
 private struct MappingTriggerBackground: View {
+    @Environment(\.appColorMode) private var colorMode
     @Environment(\.colorScheme) private var colorScheme
     let isConfigured: Bool
     var isFocused = false
@@ -359,7 +400,7 @@ private struct MappingTriggerBackground: View {
         let shape = RoundedRectangle(cornerRadius: 4)
         let base = isConfigured ? (colorScheme == .dark ? 0.10 : 0.08) : 0
         shape.fill(Color.primary.opacity(base + interaction))
-            .overlay { shape.strokeBorder(isFocused ? Color.accentColor : .clear) }
+            .overlay { shape.strokeBorder(isFocused ? colorMode.palette.selectionTint : .clear) }
             .padding(.horizontal, 2)
             .allowsHitTesting(false)
     }

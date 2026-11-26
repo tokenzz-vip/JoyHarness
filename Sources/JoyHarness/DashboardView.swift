@@ -4,7 +4,6 @@ import SwiftUI
 typealias DashboardStyle = SettingsStyle
 
 private enum Style {
-    static let accent = Color.blue
     static let left = Color(red: 0.13, green: 0.65, blue: 0.77)
     static let right = Color(red: 0.94, green: 0.37, blue: 0.30)
 }
@@ -33,15 +32,17 @@ struct DashboardView: View {
     var body: some View {
         HStack(spacing: 0) {
             sidebar.frame(width: DashboardStyle.sidebarWidth)
-            Color.primary.opacity(0.08).frame(width: 1)
+            SettingsStyle.workspaceDivider.frame(width: 1)
             VStack(spacing: 0) {
                 header
                 Divider()
-                if model.page == .mapping || model.page == .macros || model.page == .phrases {
+                if [.profiles, .macros, .phrases].contains(model.page) {
+                    content
+                } else if model.page == .mapping {
                     content
                         .padding(DashboardStyle.pagePadding)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    if model.page == .mapping { mappingFooter }
+                    mappingFooter
                 } else {
                     ScrollView {
                         content
@@ -59,8 +60,8 @@ struct DashboardView: View {
             .background(SettingsStyle.pageBackground)
             .ignoresSafeArea(.container, edges: .top)
         }
-        .frame(minWidth: DashboardStyle.minimumWindowSize.width, minHeight: DashboardStyle.minimumWindowSize.height)
-        .tint(Style.accent)
+        .background(SettingsStyle.pageBackground)
+        .tint(model.colorMode.palette.selectionTint)
         .preferredColorScheme(model.themeMode.colorScheme)
         .confirmationDialog("清除使用统计？", isPresented: $clearStatisticsVisible, titleVisibility: .visible) {
             Button("清除统计", role: .destructive, action: model.clearStatistics)
@@ -119,6 +120,7 @@ struct DashboardView: View {
             .padding(.top, SettingsStyle.pageHeaderHeight)
             .padding(.trailing, SettingsStyle.pagePadding)
         }
+        .environment(\.appColorMode, model.colorMode)
     }
     private var sidebar: some View {
         VStack(spacing: 0) {
@@ -137,7 +139,13 @@ struct DashboardView: View {
             nav(.statistics).padding(.bottom, 10)
         }
         .frame(maxHeight: .infinity)
-        .background(SettingsStyle.pageBackground)
+        .background {
+            if let sidebar = model.colorMode.palette.sidebarBackground {
+                sidebar.ignoresSafeArea(.container, edges: .top)
+            } else {
+                SettingsStyle.pageBackground
+            }
+        }
     }
     private func nav(_ page: DashboardPage) -> some View {
         Button {
@@ -152,24 +160,26 @@ struct DashboardView: View {
                             .symbolRenderingMode(.monochrome)
                             .font(.system(size: 22, weight: .regular))
                     }
-                }.frame(width: 28, height: 28)
+                }
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
                 Text(page.shortTitle).font(.system(size: 12, weight: .medium)).frame(height: 16)
             }
             .frame(maxWidth: .infinity).frame(height: 72)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .foregroundStyle(model.page == page ? Style.accent : Color.primary.opacity(0.76))
-        .background(model.page == page ? Style.accent.opacity(0.10) : .clear)
+        .foregroundStyle(model.page == page ? model.colorMode.palette.selectionTint : Color.primary.opacity(0.76))
+        .background(model.page == page ? model.colorMode.palette.selectionBackground : .clear)
         .accessibilityLabel(page.title)
         .accessibilityAddTraits(model.page == page ? .isSelected : [])
     }
     private var header: some View {
         HStack(spacing: 16) {
-            HStack(spacing: 28) {
-                Text(model.page.title).font(SettingsStyle.Typography.pageTitle)
+            HStack(spacing: SettingsStyle.Spacing.groups) {
+                Text(model.page.title).font(SettingsStyle.Typography.pageTitle).accessibilityAddTraits(.isHeader)
                 if model.page != .statistics {
-                    Toggle("启用手柄映射", isOn: Binding(get: { model.enabled }, set: model.setEnabled))
+                    Toggle("手柄映射", isOn: Binding(get: { model.enabled }, set: model.setEnabled))
                         .toggleStyle(SettingsSwitchStyle()).controlSize(.small).font(SettingsStyle.Typography.body)
                         .help("仅选中的手柄生效；关闭后可从此处或菜单栏恢复。")
                 }
@@ -186,7 +196,7 @@ struct DashboardView: View {
                 deviceCard
             }
         }
-        .padding(.horizontal, SettingsStyle.pagePadding).padding(.vertical, 18)
+        .padding(.horizontal, SettingsStyle.pagePadding)
         .frame(height: SettingsStyle.pageHeaderHeight)
     }
     private var stickModeStatus: some View {
@@ -194,17 +204,13 @@ struct DashboardView: View {
         let mode = model.currentStickMode(for: side)
         return HStack(spacing: 6) {
             Image(systemName: mode.symbol)
-            Text("当前手柄 · \(mode.label)")
+            Text(mode.label)
         }
         .font(SettingsStyle.Typography.caption.weight(.medium))
-        .foregroundStyle(mode == .pointer ? Color.accentColor : .secondary)
+        .foregroundStyle(mode == .pointer ? model.colorMode.palette.selectionTint : .secondary)
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(mode == .pointer ? Color.accentColor.opacity(0.10) : SettingsStyle.subtle,
+        .background(mode == .pointer ? model.colorMode.palette.selectionTint.opacity(0.10) : SettingsStyle.subtle,
                     in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
-        .overlay {
-            RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
-                .strokeBorder(mode == .pointer ? Color.accentColor.opacity(0.35) : Color.primary.opacity(0.10))
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("当前摇杆模式")
         .accessibilityValue("当前手柄，\(mode.label)")
@@ -214,13 +220,12 @@ struct DashboardView: View {
     private var deviceCard: some View {
         ControllerDeviceMenu(model: model) {
             HStack(spacing: SettingsStyle.Spacing.inline) {
-                Image(systemName: "gamecontroller.fill").font(.system(size: 24)).foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 5) {
+                Image(systemName: "gamecontroller").font(.system(size: 20)).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
                     Text(model.controllerTitle).font(SettingsStyle.Typography.body.weight(.semibold))
                     HStack(spacing: 6) {
                         Circle().fill(model.selectedDeviceReady ? .green : .secondary).frame(width: 6, height: 6)
                         Text(model.selectedDeviceReady ? "已连接" : "未连接")
-                            .foregroundStyle(model.selectedDeviceReady ? Color.green : Color.secondary)
                         if let device = model.selectedDevice, device.ready, let battery = device.battery,
                            let label = device.batteryLabel {
                             Image(systemName: batterySymbol(for: battery))
@@ -233,9 +238,9 @@ struct DashboardView: View {
                     .padding(.leading, SettingsStyle.controlPadding)
             }
             .foregroundStyle(.primary)
-            .padding(SettingsStyle.controlPadding)
+            .padding(.horizontal, SettingsStyle.controlPadding)
+            .padding(.vertical, 6)
             .background(SettingsStyle.subtle, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
-            .overlay { RoundedRectangle(cornerRadius: SettingsStyle.controlRadius).strokeBorder(Color.primary.opacity(0.1)) }
             .contentShape(RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
         }.fixedSize().help("更换手柄；仅选中的手柄生效")
     }
@@ -270,9 +275,6 @@ struct DashboardView: View {
 
     private var mappingFooter: some View {
         HStack(spacing: SettingsStyle.Spacing.groups) {
-            Label(model.selectedDeviceReady ? "手柄输入已连接" : "等待选中的手柄连接", systemImage: "keyboard")
-                .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
-            Divider().frame(height: 30)
             Button("连接与摇杆") { model.page = .connection }
             if !model.accessibility {
                 Button("授权辅助功能", action: model.requestAccessibility).controlSize(.small)
@@ -282,8 +284,9 @@ struct DashboardView: View {
             Button("常用语") { model.page = .phrases }
             Button("管理方案") { model.page = .profiles }
         }
-        .padding(.horizontal, SettingsStyle.pagePadding).padding(.vertical, SettingsStyle.Spacing.groups)
-        .background(.regularMaterial)
+        .buttonStyle(SettingsActionButtonStyle())
+        .padding(.horizontal, SettingsStyle.pagePadding).padding(.vertical, SettingsStyle.Spacing.inline)
+        .background(SettingsStyle.subtle)
         .overlay(alignment: .top) { Divider() }
     }
     private var connectionPage: some View {
@@ -394,7 +397,7 @@ struct DashboardView: View {
             }
             Spacer(minLength: 8)
             if model.controllerSelection.deviceID == device.id {
-                SettingsStatus(title: "已选中", color: .accentColor)
+                SettingsStatus(title: "已选中", color: model.colorMode.palette.selectionTint)
             } else {
                 Button("使用此手柄") { model.selectDevice(device.id) }.controlSize(.small)
             }
@@ -493,6 +496,13 @@ struct DashboardView: View {
                     Picker("主题模式", selection: $model.themeMode) {
                         ForEach(AppThemeMode.allCases) { Text($0.title).tag($0) }
                     }.labelsHidden().pickerStyle(.segmented).frame(width: 240)
+                }
+                Divider()
+                SettingsPreference(symbol: "paintpalette", title: "颜色模式", detail: "选择界面的强调色。") {
+                    SettingsSingleSelectionPicker(selection: $model.colorMode, options: AppColorMode.allCases.map {
+                        SettingsSelectionOption(value: $0, title: $0.title, swatch: $0.palette.actionTint)
+                    }, accessibilityLabel: "颜色模式", identifier: "settings-color-mode")
+                    .frame(width: 240)
                 }
                 Divider()
                 SettingsPreference(symbol: "arrow.counterclockwise.circle", title: "首次使用",

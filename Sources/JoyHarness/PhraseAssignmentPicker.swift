@@ -2,6 +2,7 @@ import SwiftUI
 
 @MainActor
 struct PhraseAssignmentPicker: View {
+    @Environment(\.appColorMode) private var colorMode
     let input: ControllerInput
     let phrases: [SavedPhrase]
     let selection: UUID?
@@ -72,11 +73,11 @@ struct PhraseAssignmentPicker: View {
                     }
                 }
                 Spacer(minLength: 4)
-                if selection == id { Image(systemName: "checkmark").foregroundStyle(Color.accentColor) }
+                if selection == id { Image(systemName: "checkmark").foregroundStyle(colorMode.palette.selectionTint) }
             }
             .padding(SettingsStyle.compactControlPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(selection == id ? Color.accentColor.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
+            .background(selection == id ? colorMode.palette.selectionBackground : .clear, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
             .contentShape(Rectangle())
         }.buttonStyle(.plain)
     }

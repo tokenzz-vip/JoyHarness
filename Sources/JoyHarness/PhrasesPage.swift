@@ -2,6 +2,7 @@ import SwiftUI
 
 @MainActor
 struct PhrasesPage: View {
+    @Environment(\.appColorMode) private var colorMode
     @ObservedObject var model: DashboardModel
     @State private var selectedPhraseID: UUID?
     @State private var assignmentInput: ControllerInput?
@@ -14,9 +15,13 @@ struct PhrasesPage: View {
     var body: some View {
         HStack(alignment: .top, spacing: SettingsStyle.Spacing.groups) {
             assignmentPanel.frame(width: 252)
-            phraseListPanel.frame(width: 232)
+            SettingsPanel(contentPadding: EdgeInsets()) {
+                phraseListPanel
+            }
+            .frame(width: 232)
             phraseEditorPanel.frame(maxWidth: .infinity)
         }
+        .padding(SettingsStyle.pagePadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onChange(of: model.configuration.phrases.map(\.id)) { _, _ in ensureSelection() }
     }
@@ -84,8 +89,7 @@ struct PhrasesPage: View {
                 } label: {
                     Label("返回按键映射", systemImage: "arrow.left")
                 }
-                .buttonStyle(.link)
-                .font(SettingsStyle.Typography.body.weight(.medium))
+                .buttonStyle(SettingsActionButtonStyle())
             }
             .frame(maxHeight: .infinity)
         }
@@ -99,7 +103,7 @@ struct PhrasesPage: View {
         HStack(spacing: SettingsStyle.Spacing.inline) {
             Image(systemName: symbol)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(colorMode.palette.selectionTint)
                 .frame(width: 18)
             Text(title).font(SettingsStyle.Typography.body.weight(.semibold))
             Text(detail).font(SettingsStyle.Typography.body.weight(.medium))
@@ -113,12 +117,8 @@ struct PhrasesPage: View {
     }
 
     private var phraseListPanel: some View {
-        SettingsPanel(contentPadding: EdgeInsets(top: SettingsStyle.panelPadding, leading: SettingsStyle.controlPadding,
-                                               bottom: SettingsStyle.Spacing.groups, trailing: SettingsStyle.controlPadding)) {
-            HStack(spacing: SettingsStyle.Spacing.inline) {
-                Image(systemName: "text.bubble").foregroundStyle(.secondary)
-                Text("常用语库").font(SettingsStyle.Typography.panelTitle)
-                Spacer(minLength: 4)
+        VStack(spacing: 0) {
+            SettingsLibraryHeader(title: "常用语库") {
                 Button {
                     let phrase = SavedPhrase(title: "新常用语", text: "")
                     model.configuration.phrases.append(phrase)
@@ -126,7 +126,7 @@ struct PhrasesPage: View {
                 } label: {
                     Label("新建", systemImage: "plus")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(SettingsActionButtonStyle())
                 .controlSize(.small)
                 .disabled(model.configuration.phrases.count >= 500)
             }
@@ -139,6 +139,13 @@ struct PhrasesPage: View {
                     .fixedSize()
             }
             .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+            .padding(.horizontal, SettingsStyle.Spacing.groups)
+            .padding(.bottom, SettingsStyle.Spacing.inline)
+            if !model.configuration.phrases.isEmpty {
+                phraseReorderButtons
+                    .padding(.horizontal, SettingsStyle.Spacing.groups)
+                    .padding(.bottom, SettingsStyle.Spacing.controls)
+            }
             Divider()
             if model.configuration.phrases.isEmpty {
                 VStack(spacing: SettingsStyle.Spacing.inline) {
@@ -156,8 +163,9 @@ struct PhrasesPage: View {
                 Spacer(minLength: 0)
             } else {
                 PhraseListView(model: model, selectedPhraseID: $selectedPhraseID)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                phraseReorderButtons
+                    .frame(maxWidth: .infinity)
+                    .frame(minHeight: 0, maxHeight: .infinity)
+                    .padding(SettingsStyle.Spacing.inline)
             }
         }
     }
@@ -186,22 +194,23 @@ struct PhrasesPage: View {
             .accessibilityLabel("下移所选常用语")
             Spacer(minLength: 0)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(SettingsActionButtonStyle())
         .controlSize(.small)
     }
 
     @ViewBuilder private var phraseEditorPanel: some View {
         if let phrase = selectedPhraseBinding {
-            SettingsPanel("常用语内容", symbol: "pencil") {
+            SettingsPanel {
                 HStack(alignment: .firstTextBaseline, spacing: SettingsStyle.Spacing.inline) {
                     Text(phrase.wrappedValue.displayTitle)
-                        .font(SettingsStyle.Typography.body.weight(.medium))
+                        .font(SettingsStyle.Typography.dialogTitle)
+                        .accessibilityAddTraits(.isHeader)
                         .lineLimit(1)
-                    Text("·").foregroundStyle(.tertiary)
+                        .help(phrase.wrappedValue.displayTitle)
+                    Spacer(minLength: 0)
                     Text("修改后自动保存")
                         .font(SettingsStyle.Typography.caption)
                         .foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
                 }
                 ScrollView {
                     VStack(alignment: .leading, spacing: SettingsStyle.Spacing.groups) {
@@ -212,6 +221,7 @@ struct PhrasesPage: View {
                                        titlePlaceholder: "内容2标题", textPlaceholder: "内容2正文")
                     }
                 }
+                .frame(minHeight: 0, maxHeight: .infinity)
                 Divider()
                 HStack {
                     Spacer()

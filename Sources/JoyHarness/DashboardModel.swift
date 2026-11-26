@@ -11,6 +11,7 @@ private enum SettingsKeys {
     static let configuration = "configuration.v1"
     static let statistics = "statistics.v1"
     static let controller = "controller.v1"
+    static let colorMode = "JoyHarness.colorMode"
 }
 
 enum DashboardPage: String, CaseIterable, Identifiable {
@@ -90,6 +91,12 @@ final class DashboardModel: ObservableObject {
     }
     @Published var macroBindingRequest: UUID?
     @Published var themeMode: AppThemeMode { didSet { defaults.set(themeMode.rawValue, forKey: "JoyHarness.theme") } }
+    @Published var colorMode: AppColorMode {
+        didSet {
+            defaults.set(colorMode.rawValue, forKey: SettingsKeys.colorMode)
+            phrasePicker?.model.colorMode = colorMode
+        }
+    }
     @Published var openAtLaunch: Bool { didSet { defaults.set(openAtLaunch, forKey: "JoyHarness.openAtLaunch") } }
     @Published var showDockIcon: Bool {
         didSet {
@@ -128,6 +135,7 @@ final class DashboardModel: ObservableObject {
         self.now = now
         self.scheduleNoticeDismissal = scheduleNoticeDismissal
         themeMode = AppThemeMode(rawValue: defaults.string(forKey: "JoyHarness.theme") ?? "") ?? .system
+        colorMode = defaults.string(forKey: SettingsKeys.colorMode).flatMap(AppColorMode.init(rawValue:)) ?? .iris
         openAtLaunch = defaults.object(forKey: "JoyHarness.openAtLaunch") as? Bool ?? true
         showDockIcon = defaults.object(forKey: "JoyHarness.showDockIcon") as? Bool ?? true
         controllerSelection = SettingsStorage.load(ControllerSelection.self, SettingsKeys.controller, defaults: defaults) ?? .init()
@@ -768,7 +776,7 @@ final class DashboardModel: ObservableObject {
                 harnessFocusRequest = UUID()
                 harnessComposerFocus.cancel()
                 engine.setInputCaptured(true)
-                phrasePicker.show(phrases: configuration.phrases, assignments: configuration.phraseAssignments)
+                phrasePicker.show(phrases: configuration.phrases, assignments: configuration.phraseAssignments, colorMode: colorMode)
                 if let id = controllerSelection.deviceID, let snapshot = snapshots[id] {
                     phrasePicker.model.receive(snapshot, center: configuration.centers[id],
                                                deadzone: configuration.deadzone, baseline: true)

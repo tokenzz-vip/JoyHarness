@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct ShortcutBindingEditor: View {
+    @Environment(\.appColorMode) private var colorMode
     @Binding var shortcut: RecordedShortcut?
     @Binding var keyboardShortcut: Binding<RecordedShortcut?>?
     var onRecordingChanged: (Bool) -> Void = { _ in }
@@ -30,7 +31,7 @@ struct ShortcutBindingEditor: View {
             if capturing {
                 Text(recordingHint)
                     .font(SettingsStyle.Typography.caption)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(colorMode.palette.selectionTint)
                     .fixedSize(horizontal: false, vertical: true)
                 ShortcutCapture(onCapture: {
                     shortcut = $0

@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct GlobalButtonsPanel: View {
+    @Environment(\.appColorMode) private var colorMode
     @ObservedObject var model: DashboardModel
 
     var body: some View {
@@ -52,7 +53,7 @@ struct GlobalButtonsPanel: View {
                             Image(systemName: "trash").frame(width: 24, height: 24)
                         }
                         .buttonStyle(.borderless)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(colorMode.palette.destructiveTint)
                         .accessibilityLabel("删除全局按键：\(name)")
                         .help("删除此全局按键")
                     } else {
@@ -65,7 +66,7 @@ struct GlobalButtonsPanel: View {
                 Label("增加全局按键", systemImage: "plus")
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(colorMode.palette.selectionTint)
         }
     }
 }

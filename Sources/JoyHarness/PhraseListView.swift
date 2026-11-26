@@ -42,6 +42,17 @@ struct PhraseListView: NSViewRepresentable {
         context.coordinator.update(parent: self, table: table)
     }
 
+    private final class PhraseTableRowView: NSTableRowView {
+        var selectionFill = AppColorMode.iris.palette.selectionFill
+
+        override var interiorBackgroundStyle: NSView.BackgroundStyle { .normal }
+
+        override func drawSelection(in dirtyRect: NSRect) {
+            selectionFill.setFill()
+            NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 8, yRadius: 8).fill()
+        }
+    }
+
     @MainActor
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
         static let pasteboardType = NSPasteboard.PasteboardType("vip.tokenzz.joyharness.phrase-order")
@@ -56,11 +67,14 @@ struct PhraseListView: NSViewRepresentable {
         private var parent: PhraseListView
         private var rows: [Row] = []
         private var updating = false
+        private var colorMode = AppColorMode.iris
 
         init(parent: PhraseListView) { self.parent = parent }
 
         func update(parent: PhraseListView, table: NSTableView) {
             self.parent = parent
+            let paletteChanged = colorMode != parent.model.colorMode
+            colorMode = parent.model.colorMode
             updating = true
             defer { updating = false }
             let updated = parent.model.orderedPhrases.map { phrase in
@@ -69,7 +83,7 @@ struct PhraseListView: NSViewRepresentable {
                 return Row(id: phrase.id, title: phrase.displayTitle, preview: preview,
                     bindings: PhraseAssignments.inputs.filter { parent.model.configuration.phraseAssignments[$0] == phrase.id })
             }
-            if updated != rows {
+            if updated != rows || paletteChanged {
                 rows = updated
                 table.reloadData()
             }
@@ -87,7 +101,7 @@ struct PhraseListView: NSViewRepresentable {
             let item = rows[row]
             let cell = NSTableCellView()
             let title = NSTextField(wrappingLabelWithString: item.title)
-            title.font = .systemFont(ofSize: 12, weight: .medium)
+            title.font = .systemFont(ofSize: SettingsStyle.Typography.bodySize, weight: .medium)
             title.maximumNumberOfLines = 1
             title.lineBreakMode = .byTruncatingTail
             title.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
@@ -113,7 +127,7 @@ struct PhraseListView: NSViewRepresentable {
             copy.addArrangedSubview(title)
             if !item.preview.isEmpty {
                 let preview = NSTextField(wrappingLabelWithString: item.preview)
-                preview.font = .systemFont(ofSize: 10)
+                preview.font = .systemFont(ofSize: 11)
                 preview.textColor = .secondaryLabelColor
                 preview.maximumNumberOfLines = 1
                 preview.lineBreakMode = .byTruncatingTail
@@ -131,7 +145,7 @@ struct PhraseListView: NSViewRepresentable {
             bindings.alignment = .centerY
             bindings.spacing = 8
             for input in item.bindings {
-                bindings.addArrangedSubview(symbol(input.symbol, label: "已绑定" + input.label, color: .controlAccentColor))
+                bindings.addArrangedSubview(symbol(input.symbol, label: "已绑定" + input.label, color: colorMode.palette.selectionInk))
             }
             if !item.bindings.isEmpty { stack.addArrangedSubview(bindings) }
             cell.addSubview(stack)
@@ -144,6 +158,12 @@ struct PhraseListView: NSViewRepresentable {
                 stack.bottomAnchor.constraint(lessThanOrEqualTo: cell.bottomAnchor, constant: -4),
             ])
             return cell
+        }
+
+        func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+            let view = PhraseTableRowView()
+            view.selectionFill = colorMode.palette.selectionFill
+            return view
         }
 
         private func symbol(_ name: String, label: String, color: NSColor) -> NSImageView {

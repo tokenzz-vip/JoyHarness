@@ -43,7 +43,8 @@ struct SetupView: View {
         }
         .background(Color(nsColor: .controlBackgroundColor))
         .ignoresSafeArea(.container, edges: .top)
-        .tint(.blue)
+        .tint(model.colorMode.palette.selectionTint)
+        .environment(\.appColorMode, model.colorMode)
         .preferredColorScheme(model.themeMode.colorScheme)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refreshPermissions()
@@ -68,7 +69,7 @@ struct SetupView: View {
                 let width = geometry.size.width / CGFloat(SetupStep.allCases.count)
                 ForEach(0..<(SetupStep.allCases.count - 1), id: \.self) { index in
                     Capsule()
-                        .fill(index < setup.step.index ? Color.accentColor : Color.primary.opacity(0.14))
+                        .fill(index < setup.step.index ? model.colorMode.palette.selectionTint : Color.primary.opacity(0.14))
                         .frame(width: max(0, width - 44), height: 2)
                         .position(x: CGFloat(index + 1) * width, y: 15)
                 }
@@ -89,7 +90,7 @@ struct SetupView: View {
     private func stepButton(_ step: SetupStep) -> some View {
         let current = step == setup.step
         let previous = step.index < setup.step.index
-        let style = current ? Color.white : previous ? Color.accentColor : Color.secondary
+        let style = current ? Color.white : previous ? model.colorMode.palette.selectionTint : Color.secondary
         return Button {
             setup.goBack(to: step)
         } label: {
@@ -104,8 +105,8 @@ struct SetupView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(style)
                 .frame(width: 30, height: 30)
-                .background(current ? Color.accentColor : Color(nsColor: .controlBackgroundColor), in: Circle())
-                .overlay { Circle().strokeBorder(previous ? Color.accentColor : Color.primary.opacity(0.14)) }
+                .background(current ? model.colorMode.palette.actionTint : Color(nsColor: .controlBackgroundColor), in: Circle())
+                .overlay { Circle().strokeBorder(previous ? model.colorMode.palette.selectionTint : Color.primary.opacity(0.14)) }
                 Text(step.title).font(.system(size: 12, weight: current ? .semibold : .regular))
                     .foregroundStyle(current ? Color.primary : Color.secondary)
             }
@@ -137,7 +138,7 @@ struct SetupView: View {
                 Button(setup.completed ? "返回设置" : "稍后设置", action: model.pauseSetup)
                     .keyboardShortcut(.cancelAction)
                 Button(continueTitle, action: model.advanceSetup)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SettingsActionButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
                     .disabled(hint != nil)
             }

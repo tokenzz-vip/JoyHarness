@@ -151,6 +151,10 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
                 model.updateMacroTags(macro.tagIDs.union([tag.id]), for: macro.id)
             }
         }
+        if let index = arguments.firstIndex(of: "--color-mode"), index + 1 < arguments.count,
+           let mode = AppColorMode(rawValue: arguments[index + 1]) {
+            model.colorMode = mode
+        }
         let dark = arguments.contains("--dark")
         let size = arguments.contains("--narrow") ? DashboardStyle.minimumWindowSize : Self.defaultWindowSize
         let window = Self.dashboardWindow(
@@ -180,6 +184,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         if macroTagPreview {
             let manager = NSHostingView(rootView: MacroTagManagementSheet(model: model)
                 .background(Color(nsColor: .windowBackgroundColor))
+                .environment(\.appColorMode, model.colorMode)
                 .environment(\.colorScheme, dark ? .dark : .light))
             manager.appearance = window.appearance
             manager.frame.size = manager.fittingSize
@@ -206,7 +211,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         }
         if arguments.contains("--phrase-preview") {
             let picker = PhrasePickerController(onDismiss: {}, onOutput: { _ in })
-            picker.show(phrases: model.configuration.phrases, assignments: model.configuration.phraseAssignments)
+            picker.show(phrases: model.configuration.phrases, assignments: model.configuration.phraseAssignments, colorMode: model.colorMode)
             defer { picker.model.dismiss() }
             guard let pickerView = picker.renderView else { throw RenderFailure.bitmap }
             pickerView.window?.appearance = window.appearance
@@ -245,14 +250,16 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         }
         if arguments.contains("--voice-editor-preview"), let input = model.voiceInput {
             let editor = NSHostingView(rootView: VoiceButtonEditor(model: model, input: input)
+                .environment(\.appColorMode, model.colorMode)
                 .environment(\.colorScheme, dark ? .dark : .light))
             editor.appearance = window.appearance
             editor.frame.size = editor.fittingSize
             try render(editor, to: directory.appendingPathComponent("voice-editor.png"))
             let shortcut = model.voiceButton.shortcut
             let picker = NSHostingView(rootView: VoiceShortcutSelectionPanel(mode: shortcut.mode, selection: shortcut.keys) { _ in }
+                .environment(\.appColorMode, model.colorMode)
                 .environment(\.colorScheme, dark ? .dark : .light)
-                .tint(.blue))
+                .tint(model.colorMode.palette.selectionTint))
             picker.appearance = window.appearance
             picker.frame.size = picker.fittingSize
             try render(picker, to: directory.appendingPathComponent("voice-shortcut-picker.png"))
@@ -306,7 +313,8 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
             let view = NSHostingView(rootView: MappingEditor(model: model, input: input, gesture: .single,
                                                              actionFilter: .constant(.all),
                                                              showsKeyboardInPreview: showingKeyboard)
-                .environment(\.colorScheme, dark ? .dark : .light).tint(.blue))
+                .environment(\.appColorMode, model.colorMode)
+                .environment(\.colorScheme, dark ? .dark : .light).tint(model.colorMode.palette.selectionTint))
             let sheet = NSWindow(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: false)
             sheet.isReleasedWhenClosed = false
             sheet.appearance = parent.appearance

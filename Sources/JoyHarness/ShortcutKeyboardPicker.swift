@@ -198,6 +198,7 @@ struct ShortcutKeyboardOverlay: ViewModifier {
 
 @MainActor
 struct ShortcutKeyboardPicker: View {
+    @Environment(\.appColorMode) private var colorMode
     nonisolated static let preferredWidth: CGFloat = 540
     nonisolated static let preferredHeight: CGFloat = 560
     static func height(visibleHeight: CGFloat?) -> CGFloat {
@@ -312,7 +313,7 @@ struct ShortcutKeyboardPicker: View {
                     .lineLimit(1)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 5))
+                    .background(colorMode.palette.selectionTint.opacity(0.12), in: RoundedRectangle(cornerRadius: 5))
                     .accessibilityLabel("当前选择")
                     .accessibilityValue(shortcut.label)
                     .help(shortcut.label)
@@ -322,7 +323,7 @@ struct ShortcutKeyboardPicker: View {
             Spacer()
             Button("取消", action: onCancel).keyboardShortcut(.cancelAction)
             Button("使用快捷键") { if let shortcut = selection.shortcut { onConfirm(shortcut) } }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(SettingsActionButtonStyle(prominent: true))
                 .keyboardShortcut(.defaultAction)
                 .disabled(selection.shortcut == nil)
         }
@@ -365,11 +366,11 @@ struct ShortcutKeyboardPicker: View {
                 .minimumScaleFactor(0.8)
                 .padding(.horizontal, 3)
                 .frame(width: width, height: 25)
-                .background(selected ? Color.accentColor.opacity(0.19) : Color.primary.opacity(0.045),
+                .background(selected ? colorMode.palette.selectionBackground : Color.primary.opacity(0.045),
                             in: RoundedRectangle(cornerRadius: 5))
                 .overlay {
                     RoundedRectangle(cornerRadius: 5)
-                        .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.10))
+                        .strokeBorder(selected ? colorMode.palette.selectionTint : Color.primary.opacity(0.10))
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 5))
         }

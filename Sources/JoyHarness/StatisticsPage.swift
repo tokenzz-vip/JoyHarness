@@ -39,6 +39,7 @@ struct StatisticsSummary {
 }
 
 struct StatisticsPage: View {
+    @Environment(\.appColorMode) private var colorMode
     private struct RankingEntry: Identifiable {
         let rank: Int
         let key: String
@@ -51,12 +52,12 @@ struct StatisticsPage: View {
     var body: some View {
         let summary = StatisticsSummary(statistics: statistics, range: range)
         VStack(alignment: .leading, spacing: 16) {
-            Text("所有手柄累计 · 同名按键合并，不区分型号；以下指标、图表与排行使用同一范围。")
+            Text("统计汇总所有手柄，同名按键合并计数。")
                 .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
             HStack(spacing: 12) {
-                metric("按键总次数", value: "\(summary.total)")
-                metric("使用天数", value: "\(summary.activeDays)")
-                metric("最常用按键", value: summary.ranking.first.map { ControllerInput(rawValue: $0.key)?.label ?? $0.key } ?? "—")
+                metric("按键总次数", symbol: "keyboard", value: "\(summary.total)")
+                metric("使用天数", symbol: "calendar", value: "\(summary.activeDays)")
+                metric("最常用按键", symbol: "sparkle", value: summary.ranking.first.map { ControllerInput(rawValue: $0.key)?.label ?? $0.key } ?? "—")
             }
             if summary.total == 0 {
                 SettingsPanel {
@@ -68,10 +69,10 @@ struct StatisticsPage: View {
                     }.frame(maxWidth: .infinity).padding(.vertical, 35)
                 }
             } else {
-                SettingsPanel("按键次数", symbol: "circle.dotted") {
+                SettingsPanel("每日按键次数", symbol: "chart.bar") {
                     Chart(summary.days) { day in
                         BarMark(x: .value("日期", day.date, unit: .day), y: .value("按键次数", day.count))
-                            .foregroundStyle(Color.accentColor.gradient).cornerRadius(3)
+                            .foregroundStyle(colorMode.palette.selectionTint).cornerRadius(3)
                     }.frame(height: 185)
                         .accessibilityLabel("\(range.title)按键次数趋势，共 \(summary.total) 次")
                 }
@@ -94,7 +95,7 @@ struct StatisticsPage: View {
         HStack(spacing: SettingsStyle.Spacing.inline) {
             Text("\(entry.rank)")
                 .font(SettingsStyle.Typography.caption.weight(.semibold)).monospacedDigit()
-                .foregroundStyle(entry.rank <= 3 ? Color.accentColor : .secondary)
+                .foregroundStyle(entry.rank <= 3 ? colorMode.palette.selectionTint : .secondary)
                 .frame(width: 20, alignment: .leading)
             Text(ControllerInput(rawValue: entry.key)?.label ?? entry.key)
                 .font(SettingsStyle.Typography.body)
@@ -111,9 +112,15 @@ struct StatisticsPage: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func metric(_ title: String, value: String) -> some View {
+    private func metric(_ title: String, symbol: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(title).font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
+            HStack {
+                Text(title).font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                Image(systemName: symbol)
+                    .foregroundStyle(colorMode.palette.selectionTint)
+                    .accessibilityHidden(true)
+            }
             Text(value).font(.system(size: 26, weight: .semibold, design: .rounded)).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.7)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(SettingsStyle.panelPadding)

@@ -10,6 +10,7 @@ final class PhrasePickerModel: ObservableObject {
     @Published private(set) var phrases: [ControllerInput: SavedPhrase] = [:]
     @Published private(set) var message = PhrasePickerModel.instructions
     @Published private(set) var selectedInput: ControllerInput?
+    @Published var colorMode = AppColorMode.iris
     var onOutput: ((String) -> Void)?
     var onDismiss: (() -> Void)?
 
@@ -142,7 +143,8 @@ final class PhrasePickerController {
         }
     }
 
-    func show(phrases: [SavedPhrase], assignments: PhraseAssignments) {
+    func show(phrases: [SavedPhrase], assignments: PhraseAssignments, colorMode: AppColorMode) {
+        model.colorMode = colorMode
         model.present(phrases: phrases, assignments: assignments)
         let screen = NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) } ?? NSScreen.main
         let frame = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1024, height: 768)
@@ -198,6 +200,8 @@ struct PhrasePickerView: View {
         .frame(width: Self.panelSize.width, height: Self.panelSize.height)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
         .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Color.primary.opacity(0.08)) }
+        .environment(\.appColorMode, model.colorMode)
+        .tint(model.colorMode.palette.selectionTint)
     }
 }
 
@@ -275,10 +279,11 @@ private struct PhrasePadSector: Shape {
 }
 
 private struct PhrasePadKeyStyle<S: Shape>: ButtonStyle {
+    @Environment(\.appColorMode) private var colorMode
     @Environment(\.colorScheme) private var colorScheme
     let shape: S; let hovered: Bool; let pressed: Bool; let focused: Bool
     func makeBody(configuration: ButtonStyle.Configuration) -> some View {
-        configuration.label.foregroundStyle(.primary).background { shape.fill(SettingsStyle.phrasePadKeyBackground(in: colorScheme)).overlay { shape.fill(Color.primary.opacity(configuration.isPressed || pressed ? 0.10 : hovered ? 0.05 : 0)) } }.overlay { shape.stroke(focused ? Color.accentColor : Color.primary.opacity(hovered ? 0.24 : 0.16), lineWidth: focused ? 2 : 1) }.contentShape(shape)
+        configuration.label.foregroundStyle(.primary).background { shape.fill(SettingsStyle.phrasePadKeyBackground(in: colorScheme)).overlay { shape.fill(Color.primary.opacity(configuration.isPressed || pressed ? 0.10 : hovered ? 0.05 : 0)) } }.overlay { shape.stroke(focused ? colorMode.palette.selectionTint : Color.primary.opacity(hovered ? 0.24 : 0.16), lineWidth: focused ? 2 : 1) }.contentShape(shape)
     }
 }
 

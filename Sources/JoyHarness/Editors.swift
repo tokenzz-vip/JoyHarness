@@ -13,7 +13,7 @@ struct HarnessesPage: View {
                     HarnessIcon(size: 15).foregroundStyle(.secondary)
                     Text("应用 Harness").font(SettingsStyle.Typography.panelTitle)
                     Spacer()
-                    Button("添加应用", systemImage: "plus", action: model.addHarness).buttonStyle(.borderedProminent)
+                    Button("添加应用", systemImage: "plus", action: model.addHarness).buttonStyle(SettingsActionButtonStyle(prominent: true))
                 }
                 Text("当前手柄：\(model.controllerProfile.name)。应用成为前台时自动使用其绑定方案，同一方案可绑定多个 Harness。")
                     .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
@@ -124,6 +124,7 @@ enum MappingActionFilter: String, CaseIterable, Identifiable {
 }
 
 struct MappingEditor: View {
+    @Environment(\.appColorMode) private var colorMode
     @ObservedObject var model: DashboardModel
     let input: ControllerInput
     @State var gesture: Gesture
@@ -197,9 +198,9 @@ struct MappingEditor: View {
         VStack(spacing: 0) {
             HStack(spacing: SettingsStyle.Spacing.controls) {
                 Image(systemName: input.symbol)
-                    .font(.system(size: 22)).foregroundStyle(Color.accentColor)
+                    .font(.system(size: 22)).foregroundStyle(colorMode.palette.selectionTint)
                     .frame(width: 44, height: 44)
-                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
+                    .background(colorMode.palette.selectionTint.opacity(0.1), in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 5) {
                     Text("\(input.label) · \(gesture.label)").font(SettingsStyle.Typography.dialogTitle)
@@ -246,7 +247,7 @@ struct MappingEditor: View {
                     if !changes.isEmpty { model.saveMappings(changes, input: input) }
                     dismiss()
                 }
-                .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                .buttonStyle(SettingsActionButtonStyle(prominent: true)).keyboardShortcut(.defaultAction)
                 .disabled(!scopeMatches || !actions.values.allSatisfy(\.isComplete))
             }
             .padding(.horizontal, SettingsStyle.pagePadding).padding(.vertical, SettingsStyle.Spacing.groups)

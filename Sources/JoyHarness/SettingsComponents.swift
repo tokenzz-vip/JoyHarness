@@ -10,8 +10,8 @@ struct SettingsSwitchStyle: ToggleStyle {
 }
 
 private struct SettingsSwitchBody: View {
+    @Environment(\.appColorMode) private var colorMode
     let configuration: ToggleStyleConfiguration
-    @Environment(\.controlActiveState) private var activeState
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.controlSize) private var controlSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -32,7 +32,7 @@ private struct SettingsSwitchBody: View {
                     .accessibilityHidden(true)
                     .overlay {
                         Capsule()
-                            .fill(configuration.isOn ? onColor : SettingsStyle.switchOff)
+                            .fill(configuration.isOn ? colorMode.palette.actionTint : SettingsStyle.switchOff)
                             .overlay(alignment: configuration.isOn ? .trailing : .leading) {
                                 Circle()
                                     .fill(.white)
@@ -59,10 +59,6 @@ private struct SettingsSwitchBody: View {
             Toggle(configuration).toggleStyle(.switch)
         }
     }
-
-    private var onColor: Color {
-        activeState == .key ? SettingsStyle.switchOn : SettingsStyle.inactiveSwitchOn
-    }
 }
 
 /// The switch supplies its own state feedback; pressing must not dim its label.
@@ -70,6 +66,138 @@ private struct SettingsSwitchButtonStyle: ButtonStyle {
     func makeBody(configuration: ButtonStyleConfiguration) -> some View {
         configuration.label
             .contentShape(Rectangle())
+    }
+}
+
+struct SettingsActionButtonStyle: ButtonStyle {
+    var prominent = false
+
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+        Action(configuration: configuration, prominent: prominent)
+    }
+
+    private struct Action: View {
+        @Environment(\.appColorMode) private var colorMode
+        let configuration: ButtonStyleConfiguration
+        let prominent: Bool
+        @Environment(\.isEnabled) private var enabled
+        @State private var hovered = false
+
+        var body: some View {
+            let shape = RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
+            configuration.label
+                .font(SettingsStyle.Typography.body.weight(.medium))
+                .foregroundStyle(prominent ? Color.white : Color.primary)
+                .padding(.horizontal, SettingsStyle.Spacing.inline + 2)
+                .frame(minWidth: 28, minHeight: 28)
+                .background(prominent ? colorMode.palette.actionTint : SettingsStyle.buttonBackground, in: shape)
+                .overlay {
+                    shape.fill(.black.opacity(configuration.isPressed ? 0.14 : hovered ? 0.06 : 0))
+                        .allowsHitTesting(false)
+                }
+                .contentShape(shape)
+                .opacity(enabled ? 1 : 0.42)
+                .onHover { hovered = $0 && enabled }
+        }
+    }
+}
+
+struct SettingsSidebarRowStyle: ButtonStyle {
+    let selected: Bool
+
+    func makeBody(configuration: ButtonStyleConfiguration) -> some View {
+        Row(configuration: configuration, selected: selected)
+    }
+
+    private struct Row: View {
+        @Environment(\.appColorMode) private var colorMode
+        let configuration: ButtonStyleConfiguration
+        let selected: Bool
+        @State private var hovered = false
+
+        var body: some View {
+            configuration.label
+                .foregroundStyle(selected ? colorMode.palette.selectionTint : .primary)
+                .background(selected ? colorMode.palette.selectionBackground : .clear,
+                            in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
+                .overlay {
+                    RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
+                        .fill(Color.primary.opacity(configuration.isPressed ? 0.10 : hovered ? 0.055 : 0))
+                        .allowsHitTesting(false)
+                }
+                .onHover { hovered = $0 }
+        }
+    }
+}
+
+struct SettingsWorkspace<Library: View, Detail: View>: View {
+    @ViewBuilder let library: () -> Library
+    @ViewBuilder let detail: () -> Detail
+
+    var body: some View {
+        HStack(spacing: 0) {
+            library()
+                .frame(width: SettingsStyle.libraryWidth)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .background(SettingsStyle.subtle)
+            SettingsStyle.workspaceDivider.frame(width: 1)
+            detail()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
+struct SettingsLibraryHeader<Actions: View>: View {
+    let title: String
+    @ViewBuilder let actions: () -> Actions
+
+    var body: some View {
+        HStack(spacing: SettingsStyle.Spacing.inline) {
+            Text(title).font(SettingsStyle.Typography.panelTitle)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 0)
+            actions()
+        }
+        .padding(.horizontal, SettingsStyle.Spacing.groups)
+        .frame(height: 48)
+    }
+}
+
+struct SettingsSearchField: View {
+    @Environment(\.appColorMode) private var colorMode
+    let prompt: String
+    @Binding var query: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: SettingsStyle.Spacing.inline) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            TextField(prompt, text: $query)
+                .textFieldStyle(.plain)
+                .focused($focused)
+            if !query.isEmpty {
+                Button {
+                    query = ""
+                    focused = true
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .accessibilityLabel("清除搜索")
+            }
+        }
+        .font(SettingsStyle.Typography.body)
+        .padding(.horizontal, SettingsStyle.Spacing.inline)
+        .frame(height: 30)
+        .background(SettingsStyle.buttonBackground, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
+                .strokeBorder(focused ? colorMode.palette.selectionTint : .clear)
+                .allowsHitTesting(false)
+        }
     }
 }
 
@@ -87,16 +215,21 @@ struct SettingsPanel<Content: View>: View {
         VStack(alignment: .leading, spacing: SettingsStyle.Spacing.groups) {
             if !title.isEmpty {
                 HStack(spacing: SettingsStyle.Spacing.inline) {
-                    if let symbol { Image(systemName: symbol).foregroundStyle(.secondary) }
+                    if let symbol { Image(systemName: symbol).foregroundStyle(.secondary).accessibilityHidden(true) }
                     Text(title).font(SettingsStyle.Typography.panelTitle)
+                        .accessibilityAddTraits(.isHeader)
                 }
             }
             content
         }
         .padding(contentPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(SettingsStyle.subtle, in: RoundedRectangle(cornerRadius: SettingsStyle.panelRadius))
-        .overlay { RoundedRectangle(cornerRadius: SettingsStyle.panelRadius).strokeBorder(Color.primary.opacity(0.07)) }
+        .background(SettingsStyle.panelBackground, in: RoundedRectangle(cornerRadius: SettingsStyle.panelRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: SettingsStyle.panelRadius)
+                .strokeBorder(SettingsStyle.workspaceDivider)
+                .allowsHitTesting(false)
+        }
     }
 }
 

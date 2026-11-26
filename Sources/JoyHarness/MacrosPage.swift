@@ -6,14 +6,18 @@ struct MacrosPage: View {
     @ObservedObject var model: DashboardModel
     @State private var selectedMacroID: UUID?
     @State private var macroNameDraft: String
+    @State private var query = ""
     @State private var selectedTagIDs: Set<String> = []
     @State private var showsTagManager = false
     @State private var deleting = false
     @State private var keyboardShortcut: Binding<RecordedShortcut?>?
 
     private var visibleMacros: [ActionMacro] {
-        guard !selectedTagIDs.isEmpty else { return model.savedMacros }
-        return model.savedMacros.filter { !$0.tagIDs.isDisjoint(with: selectedTagIDs) }
+        let term = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return model.savedMacros.filter { macro in
+            (selectedTagIDs.isEmpty || !macro.tagIDs.isDisjoint(with: selectedTagIDs)) &&
+                (term.isEmpty || macro.name.localizedStandardContains(term))
+        }
     }
 
     init(model: DashboardModel) {
@@ -23,22 +27,17 @@ struct MacrosPage: View {
     }
 
     var body: some View {
-        GeometryReader { geometry in
-            let columnsWidth = max(0, geometry.size.width - SettingsStyle.Spacing.groups)
-            // Widen the library with the window, while reserving room for step editing.
-            let listWidth = min(min(360, max(260, columnsWidth * 0.32)), max(0, columnsWidth - 520))
-            HStack(alignment: .top, spacing: SettingsStyle.Spacing.groups) {
-                macroList.frame(width: listWidth)
+        SettingsWorkspace {
+            macroList
+        } detail: {
+            Group {
                 if let index = model.savedMacros.firstIndex(where: { $0.id == selectedMacroID }) {
                     editor(index).id(model.savedMacros[index].id)
                 } else {
-                    SettingsPanel {
-                        SettingsEmpty(symbol: "point.3.connected.trianglepath.dotted", title: "一次按键，依次完成", detail: "添加键盘、应用和媒体操作，再回到按键映射绑定单击、双击或长按。")
-                        Spacer(minLength: 0)
-                    }
+                    SettingsEmpty(symbol: "square.3.layers.3d", title: "选择一个组合动作", detail: "选择后可编辑执行步骤和手柄绑定。")
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(SettingsStyle.pagePadding)
         }
         .modifier(ShortcutKeyboardOverlay(shortcut: $keyboardShortcut) { active in
             if active { model.beginEditing() } else { model.endEditing() }
@@ -57,9 +56,9 @@ struct MacrosPage: View {
                 selectedMacroID = visibleMacros.first?.id
             }
         }
-        .onChange(of: selectedTagIDs) { _, _ in
-            if !visibleMacros.contains(where: { $0.id == selectedMacroID }) {
-                selectedMacroID = visibleMacros.first?.id
+        .onChange(of: visibleMacros.map(\.id)) { _, ids in
+            if !ids.contains(where: { $0 == selectedMacroID }) {
+                selectedMacroID = ids.first
             }
         }
         .onChange(of: model.customMacroTags.map(\.id)) { _, _ in
@@ -73,29 +72,25 @@ struct MacrosPage: View {
     private var macroList: some View {
         let macros = visibleMacros
         let tags = model.macroTags
-        return SettingsPanel(contentPadding: EdgeInsets(top: SettingsStyle.panelPadding, leading: SettingsStyle.panelPadding,
-                                               bottom: SettingsStyle.controlPadding, trailing: SettingsStyle.compactControlPadding)) {
-            HStack(spacing: SettingsStyle.Spacing.inline) {
-                Text("我的组合动作").font(SettingsStyle.Typography.panelTitle)
-                Spacer(minLength: 4)
-                Button("管理标签") { showsTagManager = true }
-                    .controlSize(.small)
-                    .fixedSize()
-                if !model.savedMacros.isEmpty {
-                    Button { addMacro() } label: { Label("新建", systemImage: "plus") }
-                        .buttonStyle(.borderedProminent)
-                        .controlSize(.small)
-                        .fixedSize()
-                        .accessibilityLabel("新建组合动作")
-                        .disabled(!model.canAddMacro)
-                        .help(model.canAddMacro ? "新建组合动作" : "自定义组合动作已达上限")
-                }
+        return VStack(spacing: 0) {
+            SettingsLibraryHeader(title: "组合动作") {
+                Button("管理标签", systemImage: "tag") { showsTagManager = true }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(SettingsActionButtonStyle())
+                    .help("管理标签")
+                Button("新建组合动作", systemImage: "plus") { addMacro() }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(SettingsActionButtonStyle())
+                    .disabled(!model.canAddMacro)
+                    .help(model.canAddMacro ? "新建组合动作" : "自定义组合动作已达上限")
             }
-            .padding(.trailing, SettingsStyle.panelPadding - SettingsStyle.compactControlPadding)
-            tagFilterPicker
-                .accessibilityLabel("按标签筛选组合动作")
-                .padding(.trailing, SettingsStyle.panelPadding - SettingsStyle.compactControlPadding)
-            Divider().padding(.trailing, SettingsStyle.panelPadding - SettingsStyle.compactControlPadding)
+            VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
+                SettingsSearchField(prompt: "搜索组合动作", query: $query)
+                tagFilterPicker.accessibilityLabel("按标签筛选组合动作")
+            }
+            .padding(.horizontal, SettingsStyle.Spacing.groups)
+            .padding(.bottom, SettingsStyle.Spacing.controls)
+            Divider()
             ScrollViewReader { proxy in
                 ScrollView {
                     // Build only visible rows so opening a large library stays responsive.
@@ -104,11 +99,14 @@ struct MacrosPage: View {
                             SettingsEmpty(symbol: DashboardPage.macros.symbol, title: "还没有组合动作", detail: "把多个本机操作连成一次顺手的按键。")
                             Button { addMacro() } label: {
                                 Text("创建第一个组合动作").frame(maxWidth: .infinity)
-                            }.buttonStyle(.borderedProminent)
+                            }.buttonStyle(SettingsActionButtonStyle(prominent: true))
                         }
                         if !model.savedMacros.isEmpty && macros.isEmpty {
-                            SettingsEmpty(symbol: "tag", title: "此标签下还没有动作", detail: "切换标签，或新建一个组合动作。")
-                            Button("显示全部动作") { selectedTagIDs.removeAll() }
+                            SettingsEmpty(symbol: "magnifyingglass", title: "没有匹配的组合动作", detail: "试试其他名称或标签。")
+                            Button("显示全部动作") {
+                                query = ""
+                                selectedTagIDs.removeAll()
+                            }
                                 .buttonStyle(.link)
                         }
                         ForEach(macros) { macro in
@@ -116,30 +114,26 @@ struct MacrosPage: View {
                             Button { selectedMacroID = macro.id } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(macro.name).font(.system(size: 13, weight: .medium))
-                                            .lineLimit(2)
-                                        Text("\(macro.steps.count) 个步骤").font(.caption).foregroundStyle(.secondary)
-                                        if !macro.tagIDs.isEmpty {
-                                            Text(summary)
-                                                .font(SettingsStyle.Typography.caption)
-                                                .foregroundStyle(.secondary)
-                                                .lineLimit(2)
-                                                .help(summary)
-                                        }
+                                        Text(macro.name).font(SettingsStyle.Typography.listTitle).lineLimit(1)
+                                            .help(macro.name)
+                                        Text(summary.isEmpty ? "\(macro.steps.count) 个步骤" : "\(macro.steps.count) 个步骤 · \(summary)")
+                                            .font(SettingsStyle.Typography.caption)
+                                            .foregroundStyle(Color.secondary)
+                                            .lineLimit(1)
+                                            .help(summary)
                                     }
                                     Spacer(minLength: 4)
-                                    Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                                 }
-                                .padding(.horizontal, SettingsStyle.controlPadding).padding(.vertical, 6)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(selectedMacroID == macro.id ? Color.accentColor.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
+                                .padding(.horizontal, SettingsStyle.controlPadding)
+                                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                                 .contentShape(RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(SettingsSidebarRowStyle(selected: selectedMacroID == macro.id))
                             .accessibilityAddTraits(selectedMacroID == macro.id ? .isSelected : [])
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(SettingsStyle.Spacing.inline)
                 }
                 .onChange(of: selectedMacroID) { _, id in
                     if let id { proxy.scrollTo(id) }
@@ -151,6 +145,7 @@ struct MacrosPage: View {
 
     private func addMacro() {
         if let id = model.addMacro(tagIDs: selectedTagIDs.isEmpty ? [MacroTag.general.id] : selectedTagIDs) {
+            query = ""
             selectedMacroID = id
         }
     }
@@ -208,7 +203,7 @@ struct MacrosPage: View {
                                 MacroActionEditor(value: $step.mapping, model: model, parentMacroID: macro.id,
                                                   keyboardShortcut: $keyboardShortcut)
                                 HStack {
-                                    Text("执行后等待").font(.caption).foregroundStyle(.secondary)
+                                    Text("执行后等待").font(.caption).foregroundStyle(Color.secondary)
                                     Slider(value: $step.delay, in: 0...3, step: 0.1)
                                     Text(String(format: "%.1f 秒", step.delay)).font(.caption.monospacedDigit()).frame(width: 45)
                                 }
@@ -231,10 +226,12 @@ struct MacrosPage: View {
             HStack {
                 Button("删除组合动作", role: .destructive) {
                     deleting = true
-                }.buttonStyle(.link)
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(model.colorMode.palette.destructiveTint)
                 Spacer()
                 Button("绑定到手柄") { model.requestMacroBinding(macro.id) }
-                    .buttonStyle(.borderedProminent).disabled(macro.steps.isEmpty)
+                    .buttonStyle(SettingsActionButtonStyle(prominent: true)).disabled(macro.steps.isEmpty)
             }
         }
         .frame(maxHeight: .infinity, alignment: .top)

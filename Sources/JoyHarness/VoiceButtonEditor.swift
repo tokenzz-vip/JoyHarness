@@ -2,6 +2,7 @@ import SwiftUI
 
 @MainActor
 struct VoiceButtonEditor: View {
+    @Environment(\.appColorMode) private var colorMode
     @ObservedObject var model: DashboardModel
     let input: ControllerInput
     @Environment(\.dismiss) private var dismiss
@@ -23,9 +24,9 @@ struct VoiceButtonEditor: View {
         VStack(spacing: 0) {
             HStack(spacing: SettingsStyle.Spacing.controls) {
                 Image(systemName: input.symbol)
-                    .font(.system(size: 22)).foregroundStyle(Color.accentColor)
+                    .font(.system(size: 22)).foregroundStyle(colorMode.palette.selectionTint)
                     .frame(width: 44, height: 44)
-                    .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
+                    .background(colorMode.palette.selectionTint.opacity(0.1), in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 5) {
                     Text("\(input.label) · 语音模式").font(SettingsStyle.Typography.dialogTitle)
@@ -61,7 +62,7 @@ struct VoiceButtonEditor: View {
                 Button("保存") {
                     if model.saveVoiceButton(draft, controllerID: controllerID) { dismiss() }
                 }
-                .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                .buttonStyle(SettingsActionButtonStyle(prominent: true)).keyboardShortcut(.defaultAction)
                 .accessibilityIdentifier("mapping-editor-save")
                 .disabled(!scopeMatches)
             }

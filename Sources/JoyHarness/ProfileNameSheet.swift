@@ -47,7 +47,7 @@ struct ProfileNameSheet: View {
                 Button("取消", role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Button(confirmTitle, action: onConfirm)
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(SettingsActionButtonStyle(prominent: true))
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canConfirm)
             }
