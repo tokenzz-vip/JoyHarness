@@ -45,7 +45,6 @@ struct SetupView: View {
         .ignoresSafeArea(.container, edges: .top)
         .tint(model.colorMode.palette.selectionTint)
         .environment(\.appColorMode, model.colorMode)
-        .preferredColorScheme(model.themeMode.colorScheme)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             model.refreshPermissions()
         }

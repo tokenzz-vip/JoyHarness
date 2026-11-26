@@ -1,10 +1,12 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @MainActor
 final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var model: DashboardModel?
     private var window: NSWindow?
+    private var themeSubscription: AnyCancellable?
     private var statusItem: NSStatusItem?
     private let shortcutReference = ShortcutReferenceController()
     private var lock: SingleInstanceLock?
@@ -30,6 +32,7 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
             NSApp.terminate(nil); return
         } catch { Log.app.error("Cannot acquire instance lock: \(error.localizedDescription, privacy: .private)"); NSApp.terminate(nil); return }
         let model = DashboardModel(); self.model = model
+        themeSubscription = Self.bindTheme(to: model)
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         model.onMenuChange = { [weak self] in self?.updateMenu() }
         model.onToggleShortcutReference = { [weak self] in self?.toggleShortcutReference() }
@@ -66,6 +69,11 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         window.contentMinSize = DashboardStyle.minimumWindowSize
         window.setContentSize(size)
         return window
+    }
+    static func bindTheme(to model: DashboardModel) -> AnyCancellable {
+        model.$themeMode.removeDuplicates().sink { mode in
+            NSApplication.shared.appearance = mode.appearance
+        }
     }
     @objc private func showWindow() { NSApp.activate(ignoringOtherApps: true); window?.makeKeyAndOrderFront(nil) }
     @objc private func showSetup() {
@@ -172,7 +180,6 @@ final class ApplicationDelegate: NSObject, NSApplicationDelegate, NSWindowDelega
         }
         if arguments.contains("--shortcut-reference-preview") {
             let reference = ShortcutReferenceController()
-            model.themeMode = dark ? .dark : .light
             let size = arguments.contains("--narrow") ? ShortcutReferenceController.minimumSize : ShortcutReferenceController.defaultSize
             reference.show(model: model, size: size)
             defer { reference.dismiss() }

@@ -121,7 +121,6 @@ private struct SettingsSelectionPopoverAnchor<Content: View>: NSViewRepresentabl
                 .frame(width: sender.bounds.width)
                 .background(Color(nsColor: .windowBackgroundColor))
             let controller = NSHostingController(rootView: content)
-            controller.view.appearance = sender.effectiveAppearance
             popover.contentViewController = controller
             popover.contentSize = NSSize(width: sender.bounds.width, height: controller.view.fittingSize.height)
             configuration.isPresented = true

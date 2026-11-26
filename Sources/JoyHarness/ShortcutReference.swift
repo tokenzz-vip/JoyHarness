@@ -97,7 +97,6 @@ private struct ShortcutReferenceView: View {
                 .allowsHitTesting(false)
         }
         .environment(\.appColorMode, model.colorMode)
-        .preferredColorScheme(model.themeMode.colorScheme)
         .tint(model.colorMode.palette.selectionTint)
     }
 }

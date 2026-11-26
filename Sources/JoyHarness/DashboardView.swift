@@ -18,6 +18,11 @@ struct DashboardView: View {
     @State private var actionFilter = MappingActionFilter.all
     @State private var profileName = ""
     @State private var profileNaming: ProfileNaming?
+    @State private var revealGlobalButtons = false
+
+    private enum ScrollTarget: Hashable {
+        case globalButtons
+    }
 
     private enum ProfileNaming: Hashable, Identifiable {
         case new, rename(UUID)
@@ -36,7 +41,7 @@ struct DashboardView: View {
             VStack(spacing: 0) {
                 header
                 Divider()
-                if [.profiles, .macros, .phrases].contains(model.page) {
+                if [.profiles, .macros, .phrases, .connection].contains(model.page) {
                     content
                 } else if model.page == .mapping {
                     content
@@ -62,7 +67,6 @@ struct DashboardView: View {
         }
         .background(SettingsStyle.pageBackground)
         .tint(model.colorMode.palette.selectionTint)
-        .preferredColorScheme(model.themeMode.colorScheme)
         .confirmationDialog("清除使用统计？", isPresented: $clearStatisticsVisible, titleVisibility: .visible) {
             Button("清除统计", role: .destructive, action: model.clearStatistics)
             Button("取消", role: .cancel) {}
@@ -224,7 +228,7 @@ struct DashboardView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(model.controllerTitle).font(SettingsStyle.Typography.body.weight(.semibold))
                     HStack(spacing: 6) {
-                        Circle().fill(model.selectedDeviceReady ? .green : .secondary).frame(width: 6, height: 6)
+                        selectedControllerConnectionDot
                         Text(model.selectedDeviceReady ? "已连接" : "未连接")
                         if let device = model.selectedDevice, device.ready, let battery = device.battery,
                            let label = device.batteryLabel {
@@ -243,6 +247,12 @@ struct DashboardView: View {
             .background(SettingsStyle.subtle, in: RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
             .contentShape(RoundedRectangle(cornerRadius: SettingsStyle.controlRadius))
         }.fixedSize().help("更换手柄；仅选中的手柄生效")
+    }
+    private var selectedControllerConnectionDot: some View {
+        Circle()
+            .fill(model.selectedDeviceReady ? Color.green : Color.secondary)
+            .frame(width: 6, height: 6)
+            .accessibilityHidden(true)
     }
     @ViewBuilder private var content: some View {
         switch model.page {
@@ -280,7 +290,10 @@ struct DashboardView: View {
                 Button("授权辅助功能", action: model.requestAccessibility).controlSize(.small)
             }
             Spacer()
-            Button("设置全局按键") { model.page = .settings }
+            Button("设置全局按键") {
+                revealGlobalButtons = true
+                model.page = .connection
+            }
             Button("常用语") { model.page = .phrases }
             Button("管理方案") { model.page = .profiles }
         }
@@ -300,9 +313,10 @@ struct DashboardView: View {
                                   onSelect: { _ in }, generation: model.controllerProfile.generation)
                         .allowsHitTesting(false).padding(.vertical, 16)
                     ControllerDeviceMenu(model: model) {
-                        HStack {
+                        HStack(spacing: SettingsStyle.Spacing.controls) {
                             Text(model.controllerTitle).lineLimit(1)
                             Spacer(minLength: 0)
+                            selectedControllerConnectionDot
                             Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
                         }.font(SettingsStyle.Typography.body).foregroundStyle(.primary)
                             .padding(10).frame(height: 36)
@@ -312,79 +326,99 @@ struct DashboardView: View {
                     Text("可连接多个手柄，只有选中的一只生效。")
                         .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
                 }
-            }.frame(width: 224)
-            VStack(spacing: SettingsStyle.Spacing.groups) {
-                SettingsPanel {
-                    HStack(spacing: 12) {
-                        Label("连接信息", systemImage: "antenna.radiowaves.left.and.right").font(SettingsStyle.Typography.panelTitle)
-                        Spacer(minLength: 0)
-                        Button("重新扫描", action: model.rescan)
-                        Button("打开蓝牙设置", action: model.openBluetoothSettings)
-                    }.controlSize(.small)
-                    HStack {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("选中手柄").foregroundStyle(.secondary)
-                            HStack(spacing: 6) {
-                                Circle().frame(width: 6, height: 6)
-                                Text(model.selectedDeviceReady ? "已连接" : "等待连接")
-                            }
-                                .foregroundStyle(model.selectedDeviceReady ? Color.green : Color.secondary)
-                        }
-                        Spacer()
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("已连接设备").foregroundStyle(.secondary)
-                            Text("\(model.connectedCount) 个")
-                        }
-                        Spacer()
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("电量").foregroundStyle(.secondary)
-                            let device = model.selectedDevice
-                            Label(device?.batteryLabel ?? "未知", systemImage: batterySymbol(for: device?.battery ?? 0))
-                                .foregroundStyle(.secondary)
-                        }
-                    }.font(SettingsStyle.Typography.body)
-                    Divider()
-                    Text(model.hidStatus).font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
-                    Text(model.bleStatus).font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+            }
+            .frame(width: 224)
+            .padding([.leading, .vertical], SettingsStyle.pagePadding)
+
+            ScrollViewReader { proxy in
+                ScrollView {
+                    connectionSettings
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .padding([.trailing, .vertical], SettingsStyle.pagePadding)
                 }
-                SettingsPanel("手柄设备", symbol: "gamecontroller") {
-                    let devices = model.connectedDevices
-                    if devices.isEmpty {
-                        Text("当前没有已连接的手柄。一代可在系统蓝牙中配对，二代可长按 SYNC 后重新扫描。")
-                            .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
+                .task {
+                    if revealGlobalButtons {
+                        proxy.scrollTo(ScrollTarget.globalButtons)
+                        revealGlobalButtons = false
                     }
-                    ForEach(devices) { device in
-                        deviceRow(device)
-                        if device.id != devices.last?.id { Divider() }
-                    }
-                    Text("切换会释放旧手柄的按键。请松开新手柄的按键并让摇杆回中后再操作。断线后保留选择，等待原手柄重连。")
-                        .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                SettingsPanel("鼠标模式设置", symbol: "computermouse") {
-                    HStack(spacing: SettingsStyle.Spacing.groups) {
-                        mouseButtonPicker(.left)
-                        mouseButtonPicker(.right)
+            }
+        }
+    }
+    private var connectionSettings: some View {
+        VStack(spacing: SettingsStyle.Spacing.groups) {
+            SettingsPanel {
+                HStack(spacing: 12) {
+                    Label("连接信息", systemImage: "antenna.radiowaves.left.and.right").font(SettingsStyle.Typography.panelTitle)
+                    Spacer(minLength: 0)
+                    Button("重新扫描", action: model.rescan)
+                    Button("打开蓝牙设置", action: model.openBluetoothSettings)
+                }.controlSize(.small)
+                HStack {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("选中手柄").foregroundStyle(.secondary)
+                        HStack(spacing: 6) {
+                            selectedControllerConnectionDot
+                            Text(model.selectedDeviceReady ? "已连接" : "等待连接")
+                        }
+                            .foregroundStyle(model.selectedDeviceReady ? Color.green : Color.secondary)
                     }
-                    Text("鼠标按键仅在鼠标模式下生效。可选择当前手柄的非全局实体按键，摇杆按下除外。")
-                        .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
-                    HStack {
-                        Text("摇杆死区").frame(width: 64, alignment: .leading)
-                        Slider(value: $model.configuration.deadzone, in: 0.05...0.6).accessibilityLabel("摇杆死区")
-                        Text(model.configuration.deadzone, format: .percent.precision(.fractionLength(0))).monospacedDigit().frame(width: 40)
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("已连接设备").foregroundStyle(.secondary)
+                        Text("\(model.connectedCount) 个")
                     }
-                    HStack {
-                        Text("指针速度").frame(width: 64, alignment: .leading)
-                        Slider(value: $model.configuration.pointerSpeed, in: 1...40).accessibilityLabel("指针速度")
-                        Text(model.configuration.pointerSpeed, format: .number.precision(.fractionLength(0))).monospacedDigit().frame(width: 40)
-                    }
-                    HStack {
-                        Text("先松开摇杆，再校准中心。").foregroundStyle(.secondary)
-                        Spacer()
-                        Button("校准中心") { if let device = model.selectedDevice { model.calibrate(device) } }
-                            .disabled(!model.selectedDeviceReady)
+                    Spacer()
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("电量").foregroundStyle(.secondary)
+                        let device = model.selectedDevice
+                        Label(device?.batteryLabel ?? "未知", systemImage: batterySymbol(for: device?.battery ?? 0))
+                            .foregroundStyle(.secondary)
                     }
                 }.font(SettingsStyle.Typography.body)
+                Divider()
+                Text(model.hidStatus).font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                Text(model.bleStatus).font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
             }
+            SettingsPanel("手柄设备", symbol: "gamecontroller") {
+                let devices = model.connectedDevices
+                if devices.isEmpty {
+                    Text("当前没有已连接的手柄。一代可在系统蓝牙中配对，二代可长按 SYNC 后重新扫描。")
+                        .font(SettingsStyle.Typography.body).foregroundStyle(.secondary)
+                }
+                ForEach(devices) { device in
+                    deviceRow(device)
+                    if device.id != devices.last?.id { Divider() }
+                }
+                Text("切换会释放旧手柄的按键。请松开新手柄的按键并让摇杆回中后再操作。断线后保留选择，等待原手柄重连。")
+                    .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            GlobalButtonsPanel(model: model)
+                .id(ScrollTarget.globalButtons)
+            SettingsPanel("鼠标模式设置", symbol: "computermouse") {
+                HStack(spacing: SettingsStyle.Spacing.groups) {
+                    mouseButtonPicker(.left)
+                    mouseButtonPicker(.right)
+                }
+                Text("鼠标按键仅在鼠标模式下生效。可选择当前手柄的非全局实体按键，摇杆按下除外。")
+                    .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                HStack {
+                    Text("摇杆死区").frame(width: 64, alignment: .leading)
+                    Slider(value: $model.configuration.deadzone, in: 0.05...0.6).accessibilityLabel("摇杆死区")
+                    Text(model.configuration.deadzone, format: .percent.precision(.fractionLength(0))).monospacedDigit().frame(width: 40)
+                }
+                HStack {
+                    Text("指针速度").frame(width: 64, alignment: .leading)
+                    Slider(value: $model.configuration.pointerSpeed, in: 1...40).accessibilityLabel("指针速度")
+                    Text(model.configuration.pointerSpeed, format: .number.precision(.fractionLength(0))).monospacedDigit().frame(width: 40)
+                }
+                HStack {
+                    Text("先松开摇杆，再校准中心。").foregroundStyle(.secondary)
+                    Spacer()
+                    Button("校准中心") { if let device = model.selectedDevice { model.calibrate(device) } }
+                        .disabled(!model.selectedDeviceReady)
+                }
+            }.font(SettingsStyle.Typography.body)
         }
     }
     private func deviceRow(_ device: ConnectedJoyCon) -> some View {
@@ -445,7 +479,7 @@ struct DashboardView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack {
                             Text("当前版本").foregroundStyle(.secondary)
-                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.3.0")
+                            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.4.0")
                                 .font(.system(size: 14, weight: .semibold)).monospacedDigit()
                         }.font(SettingsStyle.Typography.body)
                         Text("Intel 或 Apple Silicon · macOS 14 及以上").font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
@@ -453,7 +487,6 @@ struct DashboardView: View {
                     }.frame(width: 300, alignment: .leading)
                 }.fixedSize(horizontal: false, vertical: true)
             }
-            GlobalButtonsPanel(model: model)
             SettingsPanel("权限", symbol: "shield.lefthalf.filled") {
                 SettingsPermissionRow("蓝牙", detail: "发现并连接 Joy-Con 2", symbol: "antenna.radiowaves.left.and.right",
                                       granted: model.bluetoothGranted) { model.openPrivacy("Privacy_Bluetooth") }

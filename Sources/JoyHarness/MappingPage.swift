@@ -38,6 +38,7 @@ struct MappingPage: View {
             }
             ControllerMappingDiagram(model: model, editing: editing, onEdit: onEdit)
         }
+        .frame(maxWidth: 1120, maxHeight: .infinity, alignment: .top)
     }
 
     private var activeProfileStatus: some View {
@@ -138,13 +139,17 @@ struct ControllerMappingDiagram: View {
     }
 
     var body: some View {
-        VStack(spacing: SettingsStyle.Spacing.controls) {
+        let columns = columns
+        let rowCount = CGFloat(columns.map(\.count).max() ?? 1)
+        let gapCount = max(0, rowCount - 1)
+        let maximumRowHeight: CGFloat = 68
+        let maximumRowSpacing = SettingsStyle.Spacing.controls
+        VStack(spacing: SettingsStyle.Spacing.sections) {
             GeometryReader { proxy in
-                let columns = columns
-                let centerWidth = min(240, max(180, proxy.size.width * 0.22))
-                let rowSpacing: CGFloat = 6
-                let rowCount = CGFloat(columns.map(\.count).max() ?? 1)
-                let rowHeight = (proxy.size.height - rowSpacing * (rowCount - 1)) / rowCount
+                let centerWidth = min(224, max(180, proxy.size.width * 0.21))
+                let additionalSpace = proxy.size.height - rowCount * maximumRowHeight
+                let rowSpacing = min(maximumRowSpacing, max(SettingsStyle.Spacing.inline, additionalSpace / max(1, gapCount)))
+                let rowHeight = (proxy.size.height - rowSpacing * gapCount) / rowCount
                 let columnWidth = (proxy.size.width - centerWidth) / 2
                 HStack(alignment: .top, spacing: 0) {
                     cardColumn(columns[0], height: rowHeight, spacing: rowSpacing).frame(width: columnWidth)
@@ -173,13 +178,15 @@ struct ControllerMappingDiagram: View {
                                     let edge = fromLeft ? min(faceEdge, end.x) : max(faceEdge, end.x)
                                     let entry = CGPoint(x: edge, y: target.midY + offsets.entryY)
                                     let lane = edge - direction * 12
-                                    let color = emphasized.contains(input) ? colorMode.palette.selectionTint : .primary.opacity(colorScheme == .dark ? 0.26 : 0.17)
-                                    let width: CGFloat = model.pressed.contains(input) ? 2 : emphasized.contains(input) ? 1.5 : 1
+                                    let isEmphasized = emphasized.contains(input)
+                                    let color = isEmphasized ? colorMode.palette.selectionTint : SettingsStyle.workspaceDivider
+                                    let width: CGFloat = model.pressed.contains(input) ? 2 : isEmphasized ? 1.5 : 1
                                     var guide = Path()
                                     guide.move(to: start)
                                     guide.addCurve(to: entry,
                                                    control1: CGPoint(x: lane, y: start.y), control2: CGPoint(x: lane, y: entry.y))
                                     context.stroke(guide, with: .color(color), style: StrokeStyle(lineWidth: width, lineCap: .round))
+                                    guard isEmphasized else { continue }
                                     var leader = Path()
                                     leader.move(to: entry)
                                     if entry.y == end.y {
@@ -192,7 +199,7 @@ struct ControllerMappingDiagram: View {
                                     leader.move(to: CGPoint(x: end.x - direction * 4, y: end.y - 2.5))
                                     leader.addLine(to: end)
                                     leader.addLine(to: CGPoint(x: end.x - direction * 4, y: end.y + 2.5))
-                                    context.stroke(leader, with: .color(emphasized.contains(input) ? colorMode.palette.selectionTint : .white.opacity(0.46)),
+                                    context.stroke(leader, with: .color(color),
                                                    style: StrokeStyle(lineWidth: width, lineCap: .round, lineJoin: .round))
                                 }
                             }
@@ -202,20 +209,23 @@ struct ControllerMappingDiagram: View {
                     .accessibilityHidden(true)
                 }
             }
+            .frame(maxHeight: rowCount * maximumRowHeight + gapCount * maximumRowSpacing)
             VStack(alignment: .leading, spacing: SettingsStyle.Spacing.inline) {
                 HStack(spacing: SettingsStyle.Spacing.inline) {
                     Label("摇杆方向", systemImage: "l.joystick")
                         .font(SettingsStyle.Typography.body.weight(.semibold))
                     Text(stickModeLabel)
                         .font(SettingsStyle.Typography.caption).foregroundStyle(.secondary)
+                    Rectangle().fill(SettingsStyle.workspaceDivider).frame(height: 1)
                 }
                 HStack(spacing: SettingsStyle.Spacing.inline) {
                     ForEach(ControllerInput.stickDirections(for: side)) { input in
-                        mappingCard(input, height: onEdit == nil ? 62 : 56)
+                        mappingCard(input, height: 64)
                     }
                 }
             }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .onChange(of: editing) { _, _ in
             hoveredCard = nil
             hoveredArtwork = nil
@@ -257,14 +267,15 @@ struct ControllerMappingDiagram: View {
                 voiceCard(input, height: height)
             } else {
                 gestureCard(input, pressed: pressed)
-                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .padding(.horizontal, SettingsStyle.Spacing.inline)
+                    .padding(.vertical, 4)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: height)
             }
         }
-        .background(active ? colorMode.palette.selectionTint.opacity(pressed ? 0.17 : 0.09) : SettingsStyle.subtle, in: shape)
+        .background(active ? colorMode.palette.selectionTint.opacity(pressed ? 0.17 : 0.09) : SettingsStyle.panelBackground, in: shape)
         .overlay {
-            shape.strokeBorder(active ? colorMode.palette.selectionTint.opacity(pressed ? 0.82 : 0.5) : Color.primary.opacity(0.07))
+            shape.strokeBorder(active ? colorMode.palette.selectionTint.opacity(pressed ? 0.82 : 0.5) : SettingsStyle.workspaceDivider)
                 .allowsHitTesting(false)
         }
         .onHover { hovering in
@@ -305,7 +316,7 @@ struct ControllerMappingDiagram: View {
     }
 
     private func gestureCard(_ input: ControllerInput, pressed: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 3) {
             HStack(spacing: 6) {
                 Label(input.label, systemImage: input.symbol).fontWeight(.semibold)
                 Spacer(minLength: 0)
@@ -317,7 +328,7 @@ struct ControllerMappingDiagram: View {
                 if pressed { Circle().fill(.green).frame(width: 6, height: 6) }
             }
             .font(SettingsStyle.Typography.caption)
-            HStack(spacing: 0) {
+            HStack(spacing: 4) {
                 ForEach(Gesture.allCases) { trigger in triggerButton(input, trigger: trigger) }
             }
         }
@@ -330,33 +341,33 @@ struct ControllerMappingDiagram: View {
         let configured = mapping.action != .disabled
         let title = model.mappingSummary(mapping)
         let focus = TriggerFocus(input: input, gesture: trigger)
-        let label = VStack(alignment: .leading, spacing: 0) {
-            Text(trigger.label).font(.system(size: 10))
+        let label = VStack(alignment: .leading, spacing: 2) {
+            Text(trigger.label).font(SettingsStyle.Typography.caption)
                 .foregroundStyle(SettingsStyle.mappingTriggerLabel(in: colorScheme))
                 .lineLimit(1)
-            Text(configured ? title : "– 未设置").font(.system(size: 11, weight: configured ? .semibold : .regular))
-                .foregroundStyle(configured ? .primary : SettingsStyle.mappingTriggerLabel(in: colorScheme))
-                .lineLimit(onEdit == nil ? 2 : 1)
-                .fixedSize(horizontal: false, vertical: onEdit == nil)
+            if configured {
+                Text(title)
+                    .font(SettingsStyle.Typography.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(2)
+            } else {
+                Image(systemName: onEdit == nil ? "minus" : "plus")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+            }
         }
-        .padding(.leading, 8).padding(.trailing, 4)
+        .padding(.horizontal, 4)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .contentShape(Rectangle())
 
         return Group {
             if let onEdit {
                 Button { onEdit(input, trigger) } label: { label }
-                    .buttonStyle(MappingTriggerButtonStyle(isConfigured: configured, isFocused: focusedTrigger == focus))
+                    .buttonStyle(MappingTriggerButtonStyle(isFocused: focusedTrigger == focus))
                     .focused($focusedTrigger, equals: focus)
             } else {
-                label.background { MappingTriggerBackground(isConfigured: configured) }
-                    .accessibilityElement(children: .ignore)
-            }
-        }
-        .overlay(alignment: .leading) {
-            if trigger != .single {
-                Rectangle().fill(Color.primary.opacity(0.12)).frame(width: 1)
-                    .padding(.vertical, 3).allowsHitTesting(false)
+                label.accessibilityElement(children: .ignore)
             }
         }
         .help("\(input.label) · \(trigger.label)：\(title)")
@@ -366,43 +377,28 @@ struct ControllerMappingDiagram: View {
 }
 
 private struct MappingTriggerButtonStyle: ButtonStyle {
-    let isConfigured: Bool
     let isFocused: Bool
 
     func makeBody(configuration: ButtonStyleConfiguration) -> some View {
-        TriggerButton(configuration: configuration, isConfigured: isConfigured, isFocused: isFocused)
+        TriggerButton(configuration: configuration, isFocused: isFocused)
     }
 
     private struct TriggerButton: View {
+        @Environment(\.appColorMode) private var colorMode
         let configuration: ButtonStyleConfiguration
-        let isConfigured: Bool
         let isFocused: Bool
         @State private var hovered = false
 
         var body: some View {
-            let interaction = configuration.isPressed ? 0.06 : hovered ? 0.03 : 0
+            let shape = RoundedRectangle(cornerRadius: SettingsStyle.controlRadius)
+            let color = configuration.isPressed || hovered ? SettingsStyle.buttonBackground : .clear
             configuration.label.background {
-                MappingTriggerBackground(isConfigured: isConfigured, isFocused: isFocused, interaction: interaction)
+                shape.fill(color)
+                    .overlay { shape.strokeBorder(isFocused ? colorMode.palette.selectionTint : .clear) }
+                    .allowsHitTesting(false)
             }
             .onHover { hovered = $0 }
         }
-    }
-}
-
-private struct MappingTriggerBackground: View {
-    @Environment(\.appColorMode) private var colorMode
-    @Environment(\.colorScheme) private var colorScheme
-    let isConfigured: Bool
-    var isFocused = false
-    var interaction = 0.0
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 4)
-        let base = isConfigured ? (colorScheme == .dark ? 0.10 : 0.08) : 0
-        shape.fill(Color.primary.opacity(base + interaction))
-            .overlay { shape.strokeBorder(isFocused ? colorMode.palette.selectionTint : .clear) }
-            .padding(.horizontal, 2)
-            .allowsHitTesting(false)
     }
 }
 
